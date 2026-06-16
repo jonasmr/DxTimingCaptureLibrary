@@ -11,7 +11,7 @@
 
 #include <DxEtwLibrary/DxEtwLibrary.h>
 
-#include "EtwConfig.h"               // shared with the printf sample (sample/)
+#include "EtwConfig.h"               // shared with the basic sample (samples/basic/)
 #include "PerfettoCallbacks.h"
 #include "PerfettoTraceWriter.h"
 #include "TimestampConverterImpl.h"

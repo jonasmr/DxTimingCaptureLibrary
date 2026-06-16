@@ -18,7 +18,7 @@
       <AdditionalIncludeDirectories>
         $(PerfettoPath)\sdk;
         $(PixEventDecoderPath)\include;
-        $(DxEtwLibraryRoot)\sample;
+        $(DxEtwLibraryRoot)\samples\basic;
         %(AdditionalIncludeDirectories);
       </AdditionalIncludeDirectories>
     </ClCompile>

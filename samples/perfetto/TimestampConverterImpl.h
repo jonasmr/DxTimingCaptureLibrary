@@ -6,7 +6,7 @@
 #include <DxEtwLibrary/TicksToNanoseconds.h>
 
 // Converts the session's raw QPC tick timestamps to nanoseconds. Same converter
-// the printf sample uses; see sample/PrintfCallbacks.h.
+// the basic sample uses; see samples/basic/PrintfCallbacks.h.
 class TimestampConverterImpl : public TimestampConverter
 {
     LARGE_INTEGER m_frequency;

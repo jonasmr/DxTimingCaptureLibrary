@@ -123,8 +123,10 @@ auto handler = std::make_unique<DxEtwEventHandler>(
 ```
 
 A complete, runnable consumer — ETW session setup, provider enabling, the consume
-loop, and a real QPC converter — is in [`sample/`](sample). Run it with an
-optional target PID: `DxEtwLibrary.sample.exe [targetProcessId]`.
+loop, and a real QPC converter — is in [`samples/basic/`](samples/basic). Run it
+with an optional target PID: `DxEtwLibrary.sample.exe [targetProcessId]`. A second
+sample, [`samples/perfetto/`](samples/perfetto), writes the same events into a
+[Perfetto](https://perfetto.dev) trace.
 
 ### Required ETW session mode
 
@@ -133,7 +135,7 @@ The session **must** be opened in raw-QPC timestamp mode:
 (QPC) on the session. In that mode `EventHeader.TimeStamp` is a QPC tick count,
 which is what `TimestampConverter::ConvertClockToTimeStamp` receives. Without it,
 `ProcessTrace` delivers FILETIME-based timestamps and the tick→ns conversion
-produces garbage. See `sample/EtwConfig.h` and `sample/main.cpp`.
+produces garbage. See `samples/basic/EtwConfig.h` and `samples/basic/main.cpp`.
 
 ## Data loss & diagnostics
 
@@ -149,8 +151,8 @@ Under a real-time session you can lose events. Feed the trace's logfile header t
 ## Building
 
 In-tree (within the PIX repo) the library builds with the rest of the solution as
-the `DxEtwLibrary` static library; the sample and tests are separate projects
-under [`sample/`](sample), [`test.unit/`](test.unit), and
+the `DxEtwLibrary` static library; the samples and tests are separate projects
+under [`samples/`](samples), [`test.unit/`](test.unit), and
 [`test.functional/`](test.functional).
 
 > **Standalone build status:** the public headers currently reach a few Windows
