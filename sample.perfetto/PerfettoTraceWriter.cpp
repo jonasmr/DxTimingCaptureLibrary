@@ -34,6 +34,7 @@ namespace
 struct PerfettoTraceWriter::Impl
 {
     std::string outputPath;
+    bool captureAll = false; // when false, only GPU Queue work + API Markers
     std::unique_ptr<perfetto::TracingSession> session;
 
     uint64_t nextId = 1;
@@ -90,10 +91,11 @@ struct PerfettoTraceWriter::Impl
     }
 };
 
-PerfettoTraceWriter::PerfettoTraceWriter(std::string outputPath)
+PerfettoTraceWriter::PerfettoTraceWriter(std::string outputPath, bool captureAll)
     : m_impl(std::make_unique<Impl>())
 {
     m_impl->outputPath = std::move(outputPath);
+    m_impl->captureAll = captureAll;
 
     perfetto::TracingInitArgs args;
     args.backends = perfetto::kInProcessBackend;
@@ -102,6 +104,14 @@ PerfettoTraceWriter::PerfettoTraceWriter(std::string outputPath)
 
     perfetto::TraceConfig cfg;
     cfg.add_buffers()->set_size_kb(64 * 1024); // 64 MB ring buffer
+    // Track events intern their event/track names into per-sequence incremental
+    // state. With a ring buffer, once the capture exceeds the buffer size the old
+    // packets that defined those interned names get overwritten, and later packets
+    // referencing them are dropped wholesale (reported as
+    // traced_buf_incremental_sequences_dropped). Periodically clearing and
+    // re-emitting incremental state gives the reader a re-sync point after a wrap.
+    // https://perfetto.dev/docs/concepts/buffers#incremental-state-in-trace-packets
+    cfg.mutable_incremental_state_config()->set_clear_period_ms(5000);
     auto* ds = cfg.add_data_sources()->mutable_config();
     ds->set_name("track_event");
     perfetto::protos::gen::TrackEventConfig te;
@@ -155,6 +165,7 @@ void PerfettoTraceWriter::RegisterApiMarker(uint64_t apiMarkerId, const wchar_t*
 
 void PerfettoTraceWriter::DefineApiQueue(uint64_t apiQueueId, int64_t beginNs, const wchar_t* type)
 {
+    if (!m_impl->captureAll) return;
     m_impl->apiQueues[apiQueueId] = Impl::ApiQueue{ beginNs, Narrow(type), {} };
 }
 
@@ -182,6 +193,7 @@ void PerfettoTraceWriter::EndApiQueue(uint64_t apiQueueId, int64_t endNs)
 void PerfettoTraceWriter::ObjectCreated(uint64_t objectId, const char* typeTrack, int64_t ts, std::wstring label)
 {
     (void)typeTrack;
+    if (!m_impl->captureAll) return;
     m_impl->objects[objectId] = Impl::Object{ ts, Narrow(label.c_str()), {} };
 }
 
@@ -206,6 +218,7 @@ void PerfettoTraceWriter::ObjectDestroyed(uint64_t objectId, int64_t ts)
 
 void PerfettoTraceWriter::EmitPsoCompile(uint32_t threadId, int64_t startNs, int64_t endNs)
 {
+    if (!m_impl->captureAll) return;
     std::string label = "PSO Compiles (thread " + std::to_string(threadId) + ")";
     // Thread id keys the track so concurrent compiles land on separate tracks.
     m_impl->Slice(0x50000000ull | threadId, label, "PSO compile", m_impl->ToPft(startNs), m_impl->ToPft(endNs));

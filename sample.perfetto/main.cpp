@@ -86,25 +86,51 @@ int __cdecl main(int argc, char** argv)
 {
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);
 
-    // Usage: DxEtwLibrary.sample.perfetto.exe [targetProcessId] [seconds]
-    //   targetProcessId - process to observe (default: this process)
-    //   seconds         - auto-stop after N seconds (default: run until Ctrl+C)
+    // Usage: DxEtwLibrary.sample.perfetto.exe [targetProcessId] [seconds] [--all]
     DWORD targetProcessId = GetCurrentProcessId();
-    if (argc > 1)
+    unsigned int runSeconds = 0;
+    bool captureAll = false;
+    int positional = 0;
+    for (int i = 1; i < argc; ++i)
     {
-        targetProcessId = static_cast<DWORD>(strtoul(argv[1], nullptr, 10));
-        if (targetProcessId == 0)
+        std::string arg = argv[i];
+        if (arg == "--all" || arg == "-a")
         {
-            printf("Usage: %s [targetProcessId] [seconds]\n", argv[0]);
-            return 1;
+            captureAll = true;
+        }
+        else if (arg == "--help" || arg == "-h" || arg == "/?")
+        {
+            printf("Usage: %s [targetProcessId] [seconds] [--all]\n"
+                   "  targetProcessId   process to observe (default: this process)\n"
+                   "  seconds           auto-stop after N seconds (default: run until Ctrl+C)\n"
+                   "  --all, -a         also capture D3D12 object lifetimes, API command\n"
+                   "                    queues, and PSO compiles\n"
+                   "                    (default: GPU Queue work + API Markers only)\n",
+                   argv[0]);
+            return 0;
+        }
+        else if (positional == 0)
+        {
+            targetProcessId = static_cast<DWORD>(strtoul(arg.c_str(), nullptr, 10));
+            if (targetProcessId == 0)
+            {
+                printf("Invalid process id '%s'. Use --help for usage.\n", arg.c_str());
+                return 1;
+            }
+            positional = 1;
+        }
+        else if (positional == 1)
+        {
+            runSeconds = static_cast<unsigned int>(strtoul(arg.c_str(), nullptr, 10));
+            positional = 2;
         }
     }
-    unsigned int runSeconds = (argc > 2) ? static_cast<unsigned int>(strtoul(argv[2], nullptr, 10)) : 0;
-    printf("Observing process %lu, writing dxetw.perfetto-trace\n", targetProcessId);
+    printf("Observing process %lu (%s), writing dxetw.perfetto-trace\n",
+           targetProcessId, captureAll ? "all categories" : "GPU Queue + API Markers");
 
     g_etwSessionName = L"DxEtwLibrary.sample.perfetto.session" + std::to_wstring(GetCurrentProcessId());
 
-    auto writer = std::make_unique<PerfettoTraceWriter>("dxetw.perfetto-trace");
+    auto writer = std::make_unique<PerfettoTraceWriter>("dxetw.perfetto-trace", captureAll);
     PerfettoTraceWriter& w = *writer;
 
     Options options{};

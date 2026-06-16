@@ -14,7 +14,10 @@ class PerfettoTraceWriter
 {
 public:
     // outputPath: where the .perfetto-trace file is written on Finish().
-    explicit PerfettoTraceWriter(std::string outputPath);
+    // captureAll:  false (default) records only GPU Queue work and API Markers;
+    //              true also records object lifetimes, API command queues, and
+    //              PSO compiles.
+    PerfettoTraceWriter(std::string outputPath, bool captureAll);
     ~PerfettoTraceWriter();
 
     // Mints a unique, non-zero id for the library's _Out_ id parameters. A single
