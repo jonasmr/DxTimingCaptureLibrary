@@ -77,17 +77,26 @@ struct PerfettoTraceWriter::Impl
         return perfetto::NamedTrack(perfetto::DynamicString{ label.c_str() }, id, perfetto::Track());
     }
 
-    void Slice(uint64_t trackId, const std::string& trackLabel, const std::string& sliceLabel, uint64_t begin, uint64_t end)
+    // flowId != 0 attaches a flow id to the event; events sharing a flow id are
+    // connected by an arrow in the UI (in timestamp order). Used to link an API
+    // marker to the GPU work it corresponds to.
+    void Slice(uint64_t trackId, const std::string& trackLabel, const std::string& sliceLabel, uint64_t begin, uint64_t end, uint64_t flowId = 0)
     {
         auto track = Track(trackLabel, trackId);
-        TRACE_EVENT_BEGIN("dxetw", perfetto::DynamicString{ sliceLabel.c_str() }, track, begin);
+        if (flowId)
+            TRACE_EVENT_BEGIN("dxetw", perfetto::DynamicString{ sliceLabel.c_str() }, track, begin, perfetto::Flow::ProcessScoped(flowId));
+        else
+            TRACE_EVENT_BEGIN("dxetw", perfetto::DynamicString{ sliceLabel.c_str() }, track, begin);
         TRACE_EVENT_END("dxetw", track, end);
     }
 
-    void Instant(uint64_t trackId, const std::string& trackLabel, const std::string& name, uint64_t ts)
+    void Instant(uint64_t trackId, const std::string& trackLabel, const std::string& name, uint64_t ts, uint64_t flowId = 0)
     {
         auto track = Track(trackLabel, trackId);
-        TRACE_EVENT_INSTANT("dxetw", perfetto::DynamicString{ name.c_str() }, track, ts);
+        if (flowId)
+            TRACE_EVENT_INSTANT("dxetw", perfetto::DynamicString{ name.c_str() }, track, ts, perfetto::Flow::ProcessScoped(flowId));
+        else
+            TRACE_EVENT_INSTANT("dxetw", perfetto::DynamicString{ name.c_str() }, track, ts);
     }
 };
 
@@ -153,14 +162,17 @@ void PerfettoTraceWriter::EmitGpuWork(uint64_t hwQueueId, uint64_t apiMarkerId, 
     if (itMarker != m_impl->markerName.end() && !itMarker->second.empty())
         sliceLabel = itMarker->second;
 
-    m_impl->Slice(hwQueueId, trackLabel, sliceLabel, m_impl->ToPft(beginNs), m_impl->ToPft(endNs));
+    // Link this GPU work to its API marker with a flow arrow (apiMarkerId is the
+    // same id minted in StoreApiMarker / RegisterApiMarker). 0 means no marker.
+    m_impl->Slice(hwQueueId, trackLabel, sliceLabel, m_impl->ToPft(beginNs), m_impl->ToPft(endNs), apiMarkerId);
 }
 
 void PerfettoTraceWriter::RegisterApiMarker(uint64_t apiMarkerId, const wchar_t* name, int64_t ts)
 {
     std::string n = Narrow(name);
     m_impl->markerName[apiMarkerId] = n;
-    m_impl->Instant(/*trackId*/ 1, "API Markers", n.empty() ? "marker" : n, m_impl->ToPft(ts));
+    // Same flowId as the matching GPU work, so the UI draws an arrow between them.
+    m_impl->Instant(/*trackId*/ 1, "API Markers", n.empty() ? "marker" : n, m_impl->ToPft(ts), apiMarkerId);
 }
 
 void PerfettoTraceWriter::DefineApiQueue(uint64_t apiQueueId, int64_t beginNs, const wchar_t* type)
