@@ -35,6 +35,7 @@
     <DxEtwLibraryRoot>$(MSBuildThisFileDirectory.TrimEnd('\'))</DxEtwLibraryRoot>
     <GoogleTestPath>$(DxEtwLibraryRoot)\third_party\googletest</GoogleTestPath>
     <PixEventDecoderPath>$(DxEtwLibraryRoot)\third_party\PixEventDecoder</PixEventDecoderPath>
+    <PerfettoPath>$(DxEtwLibraryRoot)\third_party\perfetto</PerfettoPath>
     <!-- true: compile the DecodeTimingBlock stub and skip the decoder reference.
          false: link the real PixEventDecoder.lib (e.g. an in-tree PIX build). -->
     <UseStubPixEventDecoder Condition="'$(UseStubPixEventDecoder)' == ''">true</UseStubPixEventDecoder>

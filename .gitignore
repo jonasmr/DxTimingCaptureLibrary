@@ -25,3 +25,7 @@ x86/
 *.idb
 *.tlog
 *.log
+
+# Perfetto capture output
+*.perfetto-trace
+*.pftrace
