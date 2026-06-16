@@ -1,0 +1,8 @@
+schemaVersion: 0.0.1
+isProduction: false
+accountableOwners:
+  service: 29957914-38a8-4914-8872-d9ca218411a1
+routing:
+  defaultAreaPath:
+    org: microsoft
+    path: OS\Core\SiGMa\GRFX-Graphics\OnePIX

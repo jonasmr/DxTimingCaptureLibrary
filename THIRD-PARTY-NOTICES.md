@@ -3,13 +3,19 @@
 DxEtwLibrary is licensed under the MIT License (see `LICENSE`). It incorporates
 or depends on the following third-party material.
 
-## DecodedPixEventTypes.h (WinPixEventRuntime)
+## WinPixEventRuntime decoder headers
 
-`include/DxEtwLibrary/Types.h` includes `<DecodedPixEventTypes.h>` for the
-`PixEventType` and `PixCpuEvent` definitions. This header ships with the
-WinPixEventRuntime and is distributed under the MIT License.
+Vendored under `third_party/PixEventDecoder/include/` (see its `README-PIX`):
 
-- Project: WinPixEventRuntime — https://github.com/microsoft/PixEvents
+- `DecodedPixEventTypes.h` — `PixEventType` / `PixCpuEvent` and related decoded
+  types, used by `include/DxEtwLibrary/Types.h` and `EtwCallbacks.h` (part of the
+  public API).
+- `PixEventDecoder.h` — declares `PixEventDecoder::DecodeTimingBlock`.
+
+Only the headers are vendored. The decoder implementation is **not** linked;
+`DecodeTimingBlock` is stubbed in `lib/PixEventDecoderStub.cpp`.
+
+- Project: WinPixEventRuntime — https://github.com/microsoft/pixevents
 - License: MIT
 
 ## Windows headers consumed at build time

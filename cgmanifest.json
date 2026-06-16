@@ -1,0 +1,23 @@
+{
+  "Registrations": [
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/google/googletest",
+          "commitHash": "2fe3bd994b3189899d93f1d5a881e725e046fdc2"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/microsoft/pixevents",
+          "commitHash": "3a7e70dde7bf54f02f9d2e9dd6d3350c6cfb962f"
+        }
+      }
+    }
+  ],
+  "Version": 1
+}

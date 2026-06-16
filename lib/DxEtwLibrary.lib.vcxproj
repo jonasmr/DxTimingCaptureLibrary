@@ -21,7 +21,7 @@
       </AdditionalOptions>
       <AdditionalIncludeDirectories>
         %(AdditionalIncludeDirectories);
-        $(WindowsRoot)\WinPixEventRuntime\decoder\include;
+        $(PixEventDecoderPath)\include;
       </AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
@@ -32,6 +32,7 @@
     <ClCompile Include="AllocationTracker.cpp" />
     <ClCompile Include="D3D12ObjectProcessor.cpp" />
     <ClCompile Include="DxEtwEventHandler.cpp" />
+    <ClCompile Include="PixEventDecoderStub.cpp" Condition="'$(UseStubPixEventDecoder)' == 'true'" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AdapterTracker.h" />

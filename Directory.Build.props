@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Standalone build settings for DxEtwLibrary, extracted from the PIX tree.
+
+  This file is the only thing that differs between a standalone build and an
+  in-tree PIX build; the .vcxproj files reference the variables defined here and
+  are otherwise unchanged. Per-project behaviour keys off properties the projects
+  declare: ConfigurationType, TestCode, and UseStubPixEventDecoder.
+
+  PixSrcRoot still points at a PIX checkout for the D3D/WDK headers that are not
+  yet vendored (D3D12Events.h, lddmcoreeventdefs.h, d3d12umddi.h). Override it
+  with /p:PixSrcRoot=... if yours differs.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PixSrcRoot Condition="'$(PixSrcRoot)' == ''">B:\pix\src</PixSrcRoot>
+    <ExternalRoot Condition="'$(ExternalRoot)' == ''">$(PixSrcRoot)\external</ExternalRoot>
+    <DxEtwLibraryRoot>$(MSBuildThisFileDirectory.TrimEnd('\'))</DxEtwLibraryRoot>
+    <GoogleTestPath>$(DxEtwLibraryRoot)\third_party\googletest</GoogleTestPath>
+    <PixEventDecoderPath>$(DxEtwLibraryRoot)\third_party\PixEventDecoder</PixEventDecoderPath>
+    <!-- true: compile the DecodeTimingBlock stub and skip the decoder reference.
+         false: link the real PixEventDecoder.lib (e.g. an in-tree PIX build). -->
+    <UseStubPixEventDecoder Condition="'$(UseStubPixEventDecoder)' == ''">true</UseStubPixEventDecoder>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PlatformToolset Condition="'$(PlatformToolset)' == ''">v143</PlatformToolset>
+    <WindowsTargetPlatformVersion Condition="'$(WindowsTargetPlatformVersion)' == ''">10.0.26100.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
+      <PreprocessorDefinitions>UNICODE;_UNICODE;NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>
+        $(DxEtwLibraryRoot)\include;
+        $(PixSrcRoot);
+        $(ExternalRoot)\d3d;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+  <ItemDefinitionGroup Condition="'$(ConfigurationType)' == 'Application'">
+    <Link>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;onecore.lib;uuid.lib;tdh.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+
+</Project>
