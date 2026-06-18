@@ -1,0 +1,19 @@
+DirectX ETW manifest headers, vendored so a standalone build resolves
+<D3D12Events.h> and <lddmcoreeventdefs.h> without a Windows/PIX checkout. They
+are placed on the include path via EtwManifestPath (Directory.Build.props),
+which sits ahead of the PIX include roots; an in-tree PIX build does not put this
+directory on the include path and uses the real headers instead.
+
+  D3D12Events.h
+      Verbatim copy of the mc.exe-generated Microsoft-Windows-D3D12 ETW manifest
+      header. The library uses its provider GUID, keyword flags, and event-id
+      constants; the tests also use the EventD3D12JournalEntry descriptor.
+      Copyright (c) Microsoft Corporation.
+
+  lddmcoreeventdefs.h
+      The DXGK / LDDMCore provider GUID, keyword flags, and the event-id
+      constants the dispatcher uses. These values come from the DXGK ETW manifest
+      LDDMCore.man, which ships with GPUView (Windows Performance Toolkit). Only
+      the values DxEtwLibrary references are included; if the dispatcher
+      (include/DxEtwLibrary/EtwDispatcher.h) handles a new DXGK event, add its
+      EventX_value here.

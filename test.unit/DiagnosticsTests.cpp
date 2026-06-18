@@ -10,7 +10,7 @@
 // constants from the D3D12 ETW manifest headers, so those must be included
 // first — the library's own pch.h includes them in this same order.
 #include <external/d3d/d3d12.h>
-#include <external/d3d/D3D12Events.h>
+#include <D3D12Events.h>
 
 #include <DxEtwLibrary/TicksToNanoseconds.h>
 #include <DxEtwLibrary/GpuTimingData.h>

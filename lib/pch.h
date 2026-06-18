@@ -18,7 +18,7 @@
 #include <vector>
 
 #include <external/d3d/d3d12.h>
-#include <external/d3d/D3D12Events.h>
+#include <D3D12Events.h>
 
 #include <Windows.h>
 #include <initguid.h>

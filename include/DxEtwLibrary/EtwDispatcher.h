@@ -10,8 +10,8 @@
 #include <evntrace.h>
 #include <evntcons.h>
 
-#include <external/d3d/D3D12Events.h>
-#include <external/d3d/lddmcoreeventdefs.h>
+#include <D3D12Events.h>
+#include <lddmcoreeventdefs.h>
 #ifndef _M_IX86 // only defined for x86 build
 #include <DxEtwLibrary/PixEtwManifest.h>
 #endif

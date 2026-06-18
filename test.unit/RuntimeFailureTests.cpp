@@ -12,7 +12,7 @@
 // from the D3D12 ETW manifest headers, so those must be included first. These
 // headers also provide Direct3D12EtwProviderGuid and EventD3D12JournalEntry_value.
 #include <external/d3d/d3d12.h>
-#include <external/d3d/D3D12Events.h>
+#include <D3D12Events.h>
 
 #include <DxEtwLibrary/DxEtwEventHandler.h>
 

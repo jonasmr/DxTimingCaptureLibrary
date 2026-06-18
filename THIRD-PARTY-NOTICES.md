@@ -18,17 +18,27 @@ Only the headers are vendored. The decoder implementation is **not** linked;
 - Project: WinPixEventRuntime — https://github.com/microsoft/pixevents
 - License: MIT
 
-## Windows headers consumed at build time
+## DirectX ETW manifest headers (`third_party/etw-manifest/`)
 
-The library parses ETW payloads defined by Windows and therefore compiles
-against several Windows headers (for example `d3d12umddi.h`,
-`lddmcoreeventdefs.h`, `D3D12Events.h`, and `d3dkmthk.h`) supplied by the
-Windows SDK and the Windows Driver Kit (WDK). These are part of the build
-toolchain, not redistributed by this repository.
+The library decodes events from the Microsoft-Windows-D3D12 and DirectX
+graphics-kernel (DXGK / LDDMCore) ETW providers, identified by manifest headers:
 
-> NOTE: In-tree, some of these headers are currently reached through the
-> surrounding PIX source tree (`<external/wdk/...>`, `<external/d3d/...>`).
-> Replacing those paths with the public Windows SDK/WDK headers (or vendoring
-> redistributable copies with confirmed provenance) is tracked as part of making
-> the library buildable standalone, and must be resolved before a public
-> source release.
+- `D3D12Events.h` — a verbatim copy of the mc.exe-generated
+  Microsoft-Windows-D3D12 manifest header. Copyright (c) Microsoft Corporation.
+- `lddmcoreeventdefs.h` — the DXGK provider GUID, keyword flags, and event-id
+  constants the library uses, taken from the DXGK ETW manifest `LDDMCore.man`
+  that ships with GPUView (see its `README-PIX`).
+
+For an in-tree PIX build these are not on the include path; the real Windows/PIX
+headers are used instead.
+
+## Other Windows headers consumed at build time
+
+The library also compiles against `d3d12.h` (DirectX Agility SDK), `d3d12umddi.h`
+(WDK), and `d3dkmthk.h`, supplied by the Windows SDK / WDK build toolchain and not
+redistributed here.
+
+> NOTE: In-tree these remaining headers are reached through the surrounding PIX
+> source tree (`<external/wdk/...>`, `<external/d3d/...>`). Repointing them at the
+> public Windows SDK/WDK and DirectX-Headers (or vendoring copies with confirmed
+> provenance) is still tracked and should be resolved before a public release.

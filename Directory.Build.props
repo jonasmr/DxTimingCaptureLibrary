@@ -7,9 +7,10 @@
   are otherwise unchanged. Per-project behaviour keys off properties the projects
   declare: ConfigurationType, TestCode, and UseStubPixEventDecoder.
 
-  PixSrcRoot still points at a PIX checkout for the D3D/WDK headers that are not
-  yet vendored (D3D12Events.h, lddmcoreeventdefs.h, d3d12umddi.h). Override it
-  with /p:PixSrcRoot=... if yours differs.
+  The D3D12Events.h / lddmcoreeventdefs.h ETW manifest headers are vendored under
+  third_party/etw-manifest (verbatim copy + shim). PixSrcRoot still points at a
+  PIX checkout for the remaining un-vendored headers (the Agility-SDK d3d12.h and
+  the WDK d3d12umddi.h). Override it with /p:PixSrcRoot=... if yours differs.
 -->
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
@@ -36,6 +37,11 @@
     <GoogleTestPath>$(DxEtwLibraryRoot)\third_party\googletest</GoogleTestPath>
     <PixEventDecoderPath>$(DxEtwLibraryRoot)\third_party\PixEventDecoder</PixEventDecoderPath>
     <PerfettoPath>$(DxEtwLibraryRoot)\third_party\perfetto</PerfettoPath>
+    <!-- Vendored DirectX ETW manifest headers (D3D12Events.h, lddmcoreeventdefs.h)
+         so <D3D12Events.h> / <lddmcoreeventdefs.h> resolve without a PIX checkout.
+         Placed ahead of PixSrcRoot below; in a PIX build this is not on the
+         include path and the real headers are used. -->
+    <EtwManifestPath>$(DxEtwLibraryRoot)\third_party\etw-manifest</EtwManifestPath>
     <!-- true: compile the DecodeTimingBlock stub and skip the decoder reference.
          false: link the real PixEventDecoder.lib (e.g. an in-tree PIX build). -->
     <UseStubPixEventDecoder Condition="'$(UseStubPixEventDecoder)' == ''">true</UseStubPixEventDecoder>
@@ -54,6 +60,7 @@
       <PreprocessorDefinitions>UNICODE;_UNICODE;NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>
         $(DxEtwLibraryRoot)\include;
+        $(EtwManifestPath);
         $(PixSrcRoot);
         $(ExternalRoot)\d3d;
         %(AdditionalIncludeDirectories)
