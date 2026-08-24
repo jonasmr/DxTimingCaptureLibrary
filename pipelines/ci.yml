@@ -1,3 +1,4 @@
+# Azure DevOps continuous integration pipeline.
 name: DxTimingCaptureLibrary_$(SourceBranchName)_$(date:yyMM).$(date:dd)$(rev:rrr)
 
 trigger:
