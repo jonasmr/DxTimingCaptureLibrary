@@ -20,6 +20,7 @@
       <AdditionalIncludeDirectories>$(ProjectDir)sdk;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <!-- Perfetto manages its own warnings; keep them from failing our build. -->
       <TreatWarningAsError>false</TreatWarningAsError>
+      <DisableSpecificWarnings>4267;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
