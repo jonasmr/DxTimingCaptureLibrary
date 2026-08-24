@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <optional>
+#include <unordered_map>
+
 #include <DxEtwLibrary/NoOpCallbacks.h>
 
 #include "PerfettoTraceWriter.h"
@@ -125,43 +128,79 @@ public:
     }
 };
 
+// GPU work is tracked per API command queue, not per hardware engine: engines are
+// shared machine-wide, so keying on one puts two apps' work on a single track.
+// targetProcessId 0 gives every D3D12 process its own track; otherwise only the
+// target gets one and the rest are left to the engine-activity tracks.
 class PerfettoGpuTimingsCallbacks : public NoOpGpuTimingsCallbacks
 {
     PerfettoTraceWriter& m_w;
+    std::optional<UINT32> m_targetProcessId;
+
+    struct ExecutionInfo { UINT32 processId; UINT64 apiQueueId; };
+
+    // Only OnGpuExecutionBegin knows the process and queue. Single ETW consumer
+    // thread, so no locking.
+    std::unordered_map<UINT64, ExecutionInfo> m_executions;
+
+    bool IsTracked(UINT32 processId) const
+    {
+        return !m_targetProcessId || processId == *m_targetProcessId;
+    }
 
 public:
-    explicit PerfettoGpuTimingsCallbacks(PerfettoTraceWriter& w) : m_w(w) {}
+    PerfettoGpuTimingsCallbacks(PerfettoTraceWriter& w, std::optional<UINT32> targetProcessId)
+        : m_w(w), m_targetProcessId(targetProcessId) {}
 
-    HRESULT OnGpuExecutionBegin(UINT32, UINT32, UINT64, INT64, UINT64, UINT64* gpuExecutionId) override
+    HRESULT OnGpuExecutionBegin(UINT32 processId, UINT32, UINT64 apiCommandQueueId, INT64, UINT64, UINT64* gpuExecutionId) override
     {
-        if (gpuExecutionId) *gpuExecutionId = m_w.NextId();
+        // The library always needs an id back, even for work we go on to drop.
+        uint64_t id = m_w.NextId();
+        if (gpuExecutionId) *gpuExecutionId = id;
+        m_executions[id] = ExecutionInfo{ processId, apiCommandQueueId };
         return S_OK;
     }
-    HRESULT OnGpuWork(UINT64 hwQueueId, UINT64, UINT32, UINT64 apiMarkerId, INT64 beginTs, INT64 endTs) override
+    HRESULT OnGpuExecutionComplete(UINT64 gpuExecutionId) override
     {
-        m_w.EmitGpuWork(hwQueueId, apiMarkerId, beginTs, endTs);
+        m_executions.erase(gpuExecutionId);
         return S_OK;
     }
-    HRESULT OnApiMarker(UINT32, UINT32, PCWSTR name, INT64 ts, UINT64* apiMarkerId) override
+    HRESULT OnGpuWork(UINT64 hwQueueId, UINT64 gpuExecutionId, UINT32, UINT64 apiMarkerId, INT64 beginTs, INT64 endTs) override
+    {
+        // Without the submitting execution there is no process to attribute the work
+        // to, and no way to keep it off another process's track.
+        auto execution = m_executions.find(gpuExecutionId);
+        if (execution == m_executions.end() || !IsTracked(execution->second.processId))
+        {
+            return S_OK;
+        }
+
+        m_w.EmitGpuWork(execution->second.processId, execution->second.apiQueueId, hwQueueId, apiMarkerId, beginTs, endTs);
+        return S_OK;
+    }
+    HRESULT OnApiMarker(UINT32 processId, UINT32, PCWSTR name, INT64 ts, UINT64* apiMarkerId) override
     {
         uint64_t id = m_w.NextId();
         if (apiMarkerId) *apiMarkerId = id;
-        m_w.RegisterApiMarker(id, name, ts);
+
+        // An unregistered id leaves the GPU work slice with its default label.
+        if (IsTracked(processId))
+        {
+            m_w.RegisterApiMarker(id, name, ts);
+        }
         return S_OK;
     }
 };
 
-// These events cover every process on the machine, so the traced process is
-// filtered out here - its own work is already on the GPU Queue tracks, in far
-// more detail, via GpuTimingsCallbacks.
+// Covers the processes that have no detailed track of their own; the writer drops
+// the ones that do.
 class PerfettoGpuEngineActivityCallbacks : public NoOpGpuEngineActivityCallbacks
 {
     PerfettoTraceWriter& m_writer;
-    UINT32 m_tracedProcessId;
 
 public:
-    PerfettoGpuEngineActivityCallbacks(PerfettoTraceWriter& writer, UINT32 tracedProcessId)
-        : m_writer(writer), m_tracedProcessId(tracedProcessId) {}
+    explicit PerfettoGpuEngineActivityCallbacks(PerfettoTraceWriter& writer)
+        : m_writer(writer) {}
 
     HRESULT OnGpuEngineActivity(
         UINT32 processId,
@@ -171,10 +210,7 @@ public:
         INT64 completeTimestamp,
         bool hardwareScheduled) override
     {
-        if (processId != m_tracedProcessId)
-        {
-            m_writer.EmitOtherProcessGpuWork(processId, hardwareCommandQueueId, submitTimestamp, completeTimestamp, hardwareScheduled);
-        }
+        m_writer.EmitOtherProcessGpuWork(processId, hardwareCommandQueueId, submitTimestamp, completeTimestamp, hardwareScheduled);
         return S_OK;
     }
 };

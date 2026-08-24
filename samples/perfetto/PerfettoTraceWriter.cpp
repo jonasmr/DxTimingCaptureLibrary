@@ -4,12 +4,14 @@
 #include <perfetto.h>
 
 #include <windows.h>
+#include <tlhelp32.h>
 
 #include <cstdio>
 #include <fstream>
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "PerfettoCategories.h"
@@ -35,7 +37,7 @@ namespace
 struct PerfettoTraceWriter::Impl
 {
     std::string outputPath;
-    bool captureAll = false; // when false, only GPU Queue work + API Markers
+    bool captureAllCategories = false; // when false, only GPU Queue work + API Markers
     std::unique_ptr<perfetto::TracingSession> session;
 
     uint64_t nextId = 1;
@@ -51,6 +53,12 @@ struct PerfettoTraceWriter::Impl
     // Friendly names that may arrive before the track is first emitted.
     std::unordered_map<uint64_t, std::string> hwQueueName;   // hwQueueId -> name
     std::unordered_map<uint64_t, std::string> markerName;    // apiMarkerId -> name
+
+    std::unordered_map<uint32_t, std::string> processNames;  // processId -> image name
+
+    // Processes with their own GPU Queue track. Engine activity covers the rest, so
+    // nothing is drawn as both a command-list span and a submit-to-retire packet.
+    std::unordered_set<uint32_t> detailedProcessIds;
 
     struct ApiQueue { int64_t beginNs; std::string type; std::string name; };
     std::unordered_map<uint64_t, ApiQueue> apiQueues;
@@ -168,9 +176,9 @@ struct PerfettoTraceWriter::Impl
         return laneTrack;
     }
 
-    void GpuWorkSlice(uint64_t hwQueueId, const std::string& queueLabel, const std::string& sliceLabel, int64_t beginNs, int64_t endNs, uint64_t flowId)
+    void GpuWorkSlice(uint64_t trackKey, const std::string& queueLabel, const std::string& sliceLabel, int64_t beginNs, int64_t endNs, uint64_t flowId)
     {
-        auto laneTrack = LaneTrack(hwQueueId, queueLabel, beginNs, endNs);
+        auto laneTrack = LaneTrack(trackKey, queueLabel, beginNs, endNs);
         if (!laneTrack)
             return;
 
@@ -199,13 +207,92 @@ struct PerfettoTraceWriter::Impl
 
         return "GPU Queue #" + std::to_string(hwQueueId);
     }
+
+    static std::string ImageNameFromSnapshot(uint32_t processId)
+    {
+        HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if (snapshot == INVALID_HANDLE_VALUE)
+        {
+            return {};
+        }
+
+        std::string imageName;
+        PROCESSENTRY32W entry{};
+        entry.dwSize = sizeof(entry);
+        for (BOOL more = Process32FirstW(snapshot, &entry); more; more = Process32NextW(snapshot, &entry))
+        {
+            if (entry.th32ProcessID == processId)
+            {
+                imageName = Narrow(entry.szExeFile);
+                break;
+            }
+        }
+
+        CloseHandle(snapshot);
+        return imageName;
+    }
+
+    // Cached because the lookup stops working once the process exits.
+    const std::string& ProcessLabel(uint32_t processId)
+    {
+        auto existing = processNames.find(processId);
+        if (existing != processNames.end())
+        {
+            return existing->second;
+        }
+
+        std::string label;
+        HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId);
+        if (process != nullptr)
+        {
+            wchar_t imagePath[MAX_PATH]{};
+            DWORD pathLengthInCharacters = ARRAYSIZE(imagePath);
+            if (QueryFullProcessImageNameW(process, 0, imagePath, &pathLengthInCharacters))
+            {
+                std::string fullPath = Narrow(imagePath);
+                size_t lastSeparator = fullPath.find_last_of('\\');
+                label = lastSeparator == std::string::npos ? fullPath : fullPath.substr(lastSeparator + 1);
+            }
+            CloseHandle(process);
+        }
+
+        // OpenProcess is denied for protected processes such as dwm and csrss, but the
+        // Toolhelp snapshot reports their image names without needing a handle.
+        if (label.empty())
+        {
+            label = ImageNameFromSnapshot(processId);
+        }
+
+        if (label.empty())
+        {
+            label = "PID " + std::to_string(processId);
+        }
+        else
+        {
+            label += " (" + std::to_string(processId) + ")";
+        }
+
+        return processNames.emplace(processId, std::move(label)).first->second;
+    }
+
+    std::string GpuQueueLabel(uint32_t processId, uint64_t hwQueueId)
+    {
+        std::string label = QueueLabel(hwQueueId);
+
+        if (processId != 0)
+        {
+            label += " - " + ProcessLabel(processId);
+        }
+
+        return label;
+    }
 };
 
-PerfettoTraceWriter::PerfettoTraceWriter(std::string outputPath, bool captureAll)
+PerfettoTraceWriter::PerfettoTraceWriter(std::string outputPath, bool captureAllCategories)
     : m_impl(std::make_unique<Impl>())
 {
     m_impl->outputPath = std::move(outputPath);
-    m_impl->captureAll = captureAll;
+    m_impl->captureAllCategories = captureAllCategories;
 
     perfetto::TracingInitArgs args;
     args.backends = perfetto::kInProcessBackend;
@@ -251,24 +338,38 @@ void PerfettoTraceWriter::NameHwQueue(uint64_t hwQueueId, const wchar_t* name)
         m_impl->hwQueueName[hwQueueId] = std::move(n);
 }
 
-void PerfettoTraceWriter::EmitGpuWork(uint64_t hwQueueId, uint64_t apiMarkerId, int64_t beginNs, int64_t endNs)
+void PerfettoTraceWriter::EmitGpuWork(uint32_t processId, uint64_t apiQueueId, uint64_t hwQueueId, uint64_t apiMarkerId, int64_t beginNs, int64_t endNs)
 {
     std::string sliceLabel = "GPU work";
     auto itMarker = m_impl->markerName.find(apiMarkerId);
     if (itMarker != m_impl->markerName.end() && !itMarker->second.empty())
         sliceLabel = itMarker->second;
 
+    m_impl->detailedProcessIds.insert(processId);
+
+    // Ids all come from one counter, so the engine fallback can't collide with a queue key.
+    uint64_t trackKey = apiQueueId != 0 ? apiQueueId : hwQueueId;
+
     // Link this GPU work to its API marker with a flow arrow (apiMarkerId is the
     // same id produced in OnApiMarker / RegisterApiMarker). 0 means no marker.
-    m_impl->GpuWorkSlice(hwQueueId, m_impl->QueueLabel(hwQueueId), sliceLabel, beginNs, endNs, apiMarkerId);
+    m_impl->GpuWorkSlice(trackKey, m_impl->GpuQueueLabel(processId, hwQueueId), sliceLabel, beginNs, endNs, apiMarkerId);
+}
+
+void PerfettoTraceWriter::MarkProcessDetailed(uint32_t processId)
+{
+    m_impl->detailedProcessIds.insert(processId);
 }
 
 void PerfettoTraceWriter::EmitOtherProcessGpuWork(uint32_t processId, uint64_t hardwareCommandQueueId, int64_t beginNs, int64_t endNs, bool hardwareScheduled)
 {
+    // Drawn in detail on its own track already.
+    if (m_impl->detailedProcessIds.count(processId) != 0)
+        return;
+
     // Named off the queue's own track so the two sort next to each other, and
     // keyed apart from it so they stay separate tracks.
     std::string trackLabel = m_impl->QueueLabel(hardwareCommandQueueId) + " (other/unknown processes)";
-    std::string sliceLabel = processId != 0 ? "PID " + std::to_string(processId) : "unattributed";
+    std::string sliceLabel = processId != 0 ? m_impl->ProcessLabel(processId) : "unattributed";
 
     auto laneTrack = m_impl->LaneTrack(hardwareCommandQueueId | Impl::OtherProcessTrackBit, trackLabel, beginNs, endNs);
     if (!laneTrack)
@@ -294,7 +395,7 @@ void PerfettoTraceWriter::RegisterApiMarker(uint64_t apiMarkerId, const wchar_t*
 
 void PerfettoTraceWriter::DefineApiQueue(uint64_t apiQueueId, int64_t beginNs, const wchar_t* type)
 {
-    if (!m_impl->captureAll) return;
+    if (!m_impl->captureAllCategories) return;
     m_impl->apiQueues[apiQueueId] = Impl::ApiQueue{ beginNs, Narrow(type), {} };
 }
 
@@ -322,7 +423,7 @@ void PerfettoTraceWriter::EndApiQueue(uint64_t apiQueueId, int64_t endNs)
 void PerfettoTraceWriter::ObjectCreated(uint64_t objectId, const char* typeTrack, int64_t ts, std::wstring label)
 {
     (void)typeTrack;
-    if (!m_impl->captureAll) return;
+    if (!m_impl->captureAllCategories) return;
     m_impl->objects[objectId] = Impl::Object{ ts, Narrow(label.c_str()), {} };
 }
 
@@ -347,7 +448,7 @@ void PerfettoTraceWriter::ObjectDestroyed(uint64_t objectId, int64_t ts)
 
 void PerfettoTraceWriter::EmitPsoCompile(uint32_t threadId, int64_t startNs, int64_t endNs)
 {
-    if (!m_impl->captureAll) return;
+    if (!m_impl->captureAllCategories) return;
     std::string label = "PSO Compiles (thread " + std::to_string(threadId) + ")";
     // Thread id keys the track so concurrent compiles land on separate tracks.
     m_impl->Slice(0x50000000ull | threadId, label, "PSO compile", m_impl->ToPft(startNs), m_impl->ToPft(endNs));

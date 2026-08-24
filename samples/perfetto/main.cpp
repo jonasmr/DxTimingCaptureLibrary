@@ -8,6 +8,7 @@
 #include "pch.h"
 
 #include <cstdlib>
+#include <optional>
 
 #include <DxEtwLibrary/DxEtwLibrary.h>
 
@@ -97,19 +98,20 @@ int __cdecl wmain(int argc, wchar_t** argv)
 {
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);
 
-    // Usage: DxEtwLibrary.sample.perfetto.exe [targetProcessId] [seconds] [--all] [--no-other-processes] [--etl <path>]
-    DWORD targetProcessId = GetCurrentProcessId();
+    // Usage: DxEtwLibrary.sample.perfetto.exe [targetProcessId|all] [seconds] [--all-categories] [--no-other-processes] [--etl <path>]
+    // No targetProcessId means machine-wide: every D3D12 process gets its own tracks.
+    std::optional<DWORD> targetProcessId;
     unsigned int runSeconds = 0;
-    bool captureAll = false;
+    bool captureAllCategories = false;
     bool captureOtherProcesses = true;
     std::wstring etlPath;
     int positional = 0;
     for (int i = 1; i < argc; ++i)
     {
         std::wstring arg = argv[i];
-        if (arg == L"--all" || arg == L"-a")
+        if (arg == L"--all-categories" || arg == L"-c")
         {
-            captureAll = true;
+            captureAllCategories = true;
         }
         else if (arg == L"--no-other-processes")
         {
@@ -126,10 +128,14 @@ int __cdecl wmain(int argc, wchar_t** argv)
         }
         else if (arg == L"--help" || arg == L"-h" || arg == L"/?")
         {
-            wprintf(L"Usage: %ls [targetProcessId] [seconds] [--all] [--no-other-processes] [--etl <path>]\n"
-                    L"  targetProcessId   process to observe (default: this process)\n"
+            wprintf(L"Usage: %ls [targetProcessId|all] [seconds] [--all-categories] [--no-other-processes] [--etl <path>]\n"
+                    L"  targetProcessId   process to observe in detail; other processes appear\n"
+                    L"                    only on the engine activity tracks\n"
+                    L"  all               show every D3D12 process in detail; D3D12 object\n"
+                    L"                    tracking is off in this mode (default)\n"
                     L"  seconds           auto-stop after N seconds (default: run until Ctrl+C)\n"
-                    L"  --all, -a         also capture D3D12 object lifetimes, API command\n"
+                    L"  --all-categories, -c\n"
+                    L"                    also capture D3D12 object lifetimes, API command\n"
                     L"                    queues, and PSO compiles\n"
                     L"                    (without it: GPU Queue work and API Markers)\n"
                     L"  --no-other-processes\n"
@@ -145,11 +151,16 @@ int __cdecl wmain(int argc, wchar_t** argv)
         }
         else if (positional == 0)
         {
-            targetProcessId = static_cast<DWORD>(wcstoul(arg.c_str(), nullptr, 10));
-            if (targetProcessId == 0)
+            // 'all' keeps the second positional (seconds) unambiguous when there is no target.
+            if (arg != L"all")
             {
-                wprintf(L"Invalid process id '%ls'. Use --help for usage.\n", arg.c_str());
-                return 1;
+                DWORD parsedProcessId = static_cast<DWORD>(wcstoul(arg.c_str(), nullptr, 10));
+                if (parsedProcessId == 0)
+                {
+                    wprintf(L"Invalid process id '%ls'. Use --help for usage.\n", arg.c_str());
+                    return 1;
+                }
+                targetProcessId = parsedProcessId;
             }
             positional = 1;
         }
@@ -161,31 +172,48 @@ int __cdecl wmain(int argc, wchar_t** argv)
     }
     const bool offline = !etlPath.empty();
     g_etlFilePath = etlPath;
-    std::string categories = captureAll ? "all categories" : "GPU Queue + API Markers";
+    std::string categories = captureAllCategories ? "all categories" : "GPU Queue + API Markers";
     if (captureOtherProcesses)
         categories += " + other processes";
     if (offline)
-        wprintf(L"Reading %s, filtering to process %lu (%hs), writing dxetw.perfetto-trace\n",
-                etlPath.c_str(), targetProcessId, categories.c_str());
-    else
+    {
+        if (targetProcessId)
+            wprintf(L"Reading %ls, filtering to process %lu (%hs), writing dxetw.perfetto-trace\n",
+                    etlPath.c_str(), *targetProcessId, categories.c_str());
+        else
+            wprintf(L"Reading %ls, all processes (%hs), writing dxetw.perfetto-trace\n",
+                    etlPath.c_str(), categories.c_str());
+    }
+    else if (targetProcessId)
+    {
         printf("Observing process %lu (%s), writing dxetw.perfetto-trace\n",
-               targetProcessId, categories.c_str());
+               *targetProcessId, categories.c_str());
+    }
+    else
+    {
+        printf("Observing all processes (%s), writing dxetw.perfetto-trace\n", categories.c_str());
+    }
 
     g_etwSessionName = L"DxEtwLibrary.sample.perfetto.session" + std::to_wstring(GetCurrentProcessId());
 
-    auto writer = std::make_unique<PerfettoTraceWriter>("dxetw.perfetto-trace", captureAll);
+    auto writer = std::make_unique<PerfettoTraceWriter>("dxetw.perfetto-trace", captureAllCategories);
+    if (targetProcessId)
+    {
+        writer->MarkProcessDetailed(*targetProcessId);
+    }
 
     DxEtwLibraryOptions libraryOptions{};
-    libraryOptions.TrackApiObjects = true;
+    // Object tracking is scoped to a single process, so it needs a target.
+    libraryOptions.TrackApiObjects = targetProcessId.has_value();
     libraryOptions.TrackGpuTiming = true;
     libraryOptions.TrackGpuEngineActivity = captureOtherProcesses;
 
     QpcTimestampConverter timestampConverter = QpcTimestampConverter::ForCurrentMachine();
     PerfettoApiObjectCallbacks apiObjectCallbacks(*writer);
-    PerfettoGpuTimingsCallbacks gpuTimingsCallbacks(*writer);
+    PerfettoGpuTimingsCallbacks gpuTimingsCallbacks(*writer, targetProcessId);
     PerfettoDxgkObjectCallbacks dxgkObjectCallbacks(*writer);
     PerfettoPipelineStateEventCallbacks pipelineStateEventCallbacks(*writer);
-    PerfettoGpuEngineActivityCallbacks gpuEngineActivityCallbacks(*writer, targetProcessId);
+    PerfettoGpuEngineActivityCallbacks gpuEngineActivityCallbacks(*writer);
 
     DxEtwEventCallbacks callbacks;
     callbacks.ApiObjectCallbacks = &apiObjectCallbacks;
@@ -194,7 +222,7 @@ int __cdecl wmain(int argc, wchar_t** argv)
     callbacks.PipelineStateEventCallbacks = &pipelineStateEventCallbacks;
     callbacks.GpuEngineActivityCallbacks = &gpuEngineActivityCallbacks;
 
-    g_dxEtwEventHandler = DxEtwEventHandler::Create(targetProcessId, libraryOptions, callbacks, timestampConverter);
+    g_dxEtwEventHandler = DxEtwEventHandler::Create(targetProcessId.value_or(0), libraryOptions, callbacks, timestampConverter);
 
     if (offline)
     {

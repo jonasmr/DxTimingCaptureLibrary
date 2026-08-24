@@ -67,7 +67,16 @@ supplying:
   the D3D12 runtime's failure journal entries (`EventD3D12JournalEntry`): the broad
   signal for "something failed inside the D3D12 runtime", such as a command list
   removed because a recording-time call (e.g. `CopyBufferRegion`) was rejected.
-- A **target process id** — the single process whose work is decoded.
+- A **target process id** — the process whose D3D12 *object* state (resources, heaps,
+  descriptor heaps, residency) is tracked. It does **not** filter GPU timing:
+  `GpuTimingsCallbacks` decodes command-list execution for *every* D3D12 process on
+  the machine, which is why `OnGpuExecutionBegin` and `OnApiMarker` carry a
+  `processId`. `OnGpuWork` does not, so a consumer that wants a single-process
+  timeline must record `gpuExecutionId` → `processId` at `OnGpuExecutionBegin` and
+  filter on it — see `PerfettoGpuTimingsCallbacks` in
+  `samples/perfetto/PerfettoCallbacks.h`. PIX takes the other route: it persists
+  every process's executions into the capture and filters to the target process in
+  its UI.
 
 **Why every callback is required:** the library mints ids in one callback (e.g. a
 command-queue id from `DxgkObjectCallbacks`) and feeds them into another (e.g.

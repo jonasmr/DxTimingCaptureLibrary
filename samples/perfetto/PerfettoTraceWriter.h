@@ -14,10 +14,10 @@ class PerfettoTraceWriter
 {
 public:
     // outputPath: where the .perfetto-trace file is written on Finish().
-    // captureAll:  false (default) records only GPU Queue work and API Markers;
+    // captureAllCategories: false records only GPU Queue work and API Markers;
     //              true also records object lifetimes, API command queues, and
     //              PSO compiles.
-    PerfettoTraceWriter(std::string outputPath, bool captureAll);
+    PerfettoTraceWriter(std::string outputPath, bool captureAllCategories);
     ~PerfettoTraceWriter();
 
     // Produces a unique, non-zero id for the library's _Out_ id parameters. A single
@@ -27,14 +27,18 @@ public:
 
     // GPU command queues + GPU work spans.
     void NameHwQueue(uint64_t hwQueueId, const wchar_t* name);
-    void EmitGpuWork(uint64_t hwQueueId, uint64_t apiMarkerId, int64_t beginNs, int64_t endNs);
+    void EmitGpuWork(uint32_t processId, uint64_t apiQueueId, uint64_t hwQueueId, uint64_t apiMarkerId, int64_t beginNs, int64_t endNs);
     void RegisterApiMarker(uint64_t apiMarkerId, const wchar_t* name, int64_t ts);
 
-    // GPU work from processes other than the traced one, on a track beside the
-    // engine it ran on. Each span covers submit to completion, so it is an upper
-    // bound on engine time rather than a measurement of it. processId 0 means the
-    // packet's owner was never identified, hardwareCommandQueueId 0 means the
-    // engine wasn't either.
+    // Claims a process for the detailed GPU Queue tracks before its first work
+    // arrives, keeping early packets off the other-process track.
+    void MarkProcessDetailed(uint32_t processId);
+
+    // GPU work from processes without a detailed track of their own, on a track
+    // beside the engine it ran on. Each span covers submit to completion, so it is
+    // an upper bound on engine time rather than a measurement of it. processId 0
+    // means the packet's owner was never identified, hardwareCommandQueueId 0 means
+    // the engine wasn't either.
     void EmitOtherProcessGpuWork(uint32_t processId, uint64_t hardwareCommandQueueId, int64_t beginNs, int64_t endNs, bool hardwareScheduled);
 
     // API command queues (lifetime slices).
