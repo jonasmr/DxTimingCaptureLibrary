@@ -12,7 +12,7 @@
 // from the D3D12 ETW manifest headers, so those must be included first. These
 // headers also provide Direct3D12EtwProviderGuid and EventD3D12JournalEntry_value.
 #include <external/d3d/d3d12.h>
-#include <D3D12Events.h>
+#include <external/d3d/D3D12Events.h>
 
 #include <DxEtwLibrary/DxEtwEventHandler.h>
 
@@ -109,36 +109,23 @@ namespace
     // false the optional slot is null, exercising the "journal entries ignored" path.
     struct HandlerFixture
     {
+        NoOpTimestampConverter Converter;
+        RecordingRuntimeFailureCallbacks RecordingStorage;
+
         RecordingRuntimeFailureCallbacks* Recording = nullptr;
         std::unique_ptr<DxEtwEventHandler> Handler;
 
         explicit HandlerFixture(bool withFailureCallback = true)
         {
-            Options options{};
+            DxEtwEventCallbacks callbacks;
 
-            std::unique_ptr<RuntimeFailureCallbacks> failureCallbacks;
             if (withFailureCallback)
             {
-                auto recording = std::make_unique<RecordingRuntimeFailureCallbacks>();
-                Recording = recording.get();
-                failureCallbacks = std::move(recording);
+                Recording = &RecordingStorage;
+                callbacks.RuntimeFailureCallbacks = &RecordingStorage;
             }
 
-            Handler = std::make_unique<DxEtwEventHandler>(
-                options,
-                true,
-                std::make_unique<NoOpApiObjectCallbacks>(),
-                std::make_unique<NoOpPixCounterCallbacks>(),
-                std::make_unique<NoOpResidencyEventCallbacks>(),
-                std::make_unique<NoOpPixEventCallbacks>(),
-                std::make_unique<NoOpMonitorEventCallbacks>(),
-                std::make_unique<NoOpGpuTimingsCallbacks>(),
-                std::make_unique<NoOpDxgkObjectCallbacks>(),
-                std::make_unique<NoOpPipelineStateEventCallbacks>(),
-                nullptr, // diagnostics sink (defaults to a no-op)
-                std::move(failureCallbacks),
-                std::make_unique<NoOpTimestampConverter>(),
-                TargetProcessId);
+            Handler = DxEtwEventHandler::Create(TargetProcessId, {}, callbacks, Converter);
         }
     };
 }

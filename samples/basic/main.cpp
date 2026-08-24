@@ -10,9 +10,23 @@
 #include "EtwConfig.h"
 #include "PrintfCallbacks.h"
 
+using namespace DirectX::Etw;
+
 static std::wstring g_etwSessionName;
 static std::atomic<bool> g_running(true);
 static TRACEHANDLE g_sessionHandle = 0;
+
+static ApiObjectCallbacksPrintf g_apiObjectCallbacks;
+static PixCounterCallbacksPrintf g_pixCounterCallbacks;
+static ResidencyEventCallbacksPrintf g_residencyEventCallbacks;
+static PixEventCallbacksPrintf g_pixEventCallbacks;
+static MonitorCallbacksPrintf g_monitorEventCallbacks;
+static GpuTimingsCallbacksPrintf g_gpuTimingsCallbacks;
+static DxgkObjectCallbacksPrintf g_dxgkObjectCallbacks;
+static PipelineStateEventCallbacksPrintf g_pipelineStateEventCallbacks;
+static DirectStorageCallbacksPrintf g_directStorageCallbacks;
+static DiagnosticsSinkPrintf g_diagnosticsSink;
+static RuntimeFailureCallbacksPrintf g_runtimeFailureCallbacks;
 
 std::unique_ptr<DxEtwEventHandler> g_dxEtwEventHandler;
 
@@ -70,7 +84,8 @@ static void ConsumerThread()
         DebugBreak();
     }
 
-    // Report the final loss totals once processing has drained.
+    // Flush any pending correlation before reading the final loss totals.
+    g_dxEtwEventHandler->OnDataComplete();
     g_dxEtwEventHandler->ReportTraceStatistics(trace);
 
     status = CloseTrace(traceHandle);
@@ -100,39 +115,37 @@ int __cdecl main(int argc, char** argv)
     // argument; with no argument the sample observes its own process. (A single
     // target PID is required because WinPixEventDecoder currently decodes one
     // process at a time.)
-    DWORD targetProcessId = GetCurrentProcessId();
+    DWORD filterToProcessId = GetCurrentProcessId();
     if (argc > 1)
     {
-        targetProcessId = static_cast<DWORD>(strtoul(argv[1], nullptr, 10));
-        if (targetProcessId == 0)
+        filterToProcessId = static_cast<DWORD>(strtoul(argv[1], nullptr, 10));
+        if (filterToProcessId == 0)
         {
-            printf("Usage: %s [targetProcessId]\n", argv[0]);
+            printf("Usage: %s [processId]\n", argv[0]);
             return 1;
         }
     }
-    printf("Observing process %lu\n", targetProcessId);
+    printf("Observing process %lu\n", filterToProcessId);
 
     g_etwSessionName = L"DxEtwLibrary.sample.session" + std::to_wstring(GetCurrentProcessId());
 
-    Options options{};
-    options.CaptureGpuMemoryUsage = true;
+    DxEtwLibraryOptions libraryOptions{};
+    libraryOptions.TrackApiObjects = true;
 
-    g_dxEtwEventHandler = std::make_unique<DxEtwEventHandler>(
-        options,
-        true,
-        std::make_unique<ApiObjectCallbacksPrintf>(),
-        std::make_unique<PixCounterCallbacksPrintf>(),
-        std::make_unique<ResidencyEventCallbacksPrintf>(),
-        std::make_unique<PixEventCallbacksPrintf>(),
-        std::make_unique<MonitorCallbacksPrintf>(),
-        std::make_unique<GpuTimingsCallbacksPrintf>(),
-        std::make_unique<DxgkObjectCallbacksPrintf>(),
-        std::make_unique<PipelineStateEventCallbacksPrintf>(),
-        std::make_unique<DiagnosticsSinkPrintf>(),
-        std::make_unique<RuntimeFailureCallbacksPrintf>(),
-        std::make_unique<TimestampConverterImpl>(),
-        targetProcessId
-    );
+    DxEtwEventCallbacks callbacks;
+    callbacks.ApiObjectCallbacks = &g_apiObjectCallbacks;
+    callbacks.PixCounterCallbacks = &g_pixCounterCallbacks;
+    callbacks.ResidencyEventCallbacks = &g_residencyEventCallbacks;
+    callbacks.PixEventCallbacks = &g_pixEventCallbacks;
+    callbacks.MonitorEventCallbacks = &g_monitorEventCallbacks;
+    callbacks.GpuTimingsCallbacks = &g_gpuTimingsCallbacks;
+    callbacks.DxgkObjectCallbacks = &g_dxgkObjectCallbacks;
+    callbacks.PipelineStateEventCallbacks = &g_pipelineStateEventCallbacks;
+    callbacks.DirectStorageCallbacks = &g_directStorageCallbacks;
+    callbacks.DiagnosticsSink = &g_diagnosticsSink;
+    callbacks.RuntimeFailureCallbacks = &g_runtimeFailureCallbacks;
+
+    g_dxEtwEventHandler = DxEtwEventHandler::Create(filterToProcessId, libraryOptions, callbacks);
 
     // Start Trace
     EventTraceProperties properties{};
@@ -144,8 +157,10 @@ int __cdecl main(int argc, char** argv)
         DebugBreak();
     }
 
-    EnableD3D12Provider(g_sessionHandle, options.CaptureGpuMemoryUsage);
-    EnableDxgkProvider(g_sessionHandle, options.CaptureGpuTiming, options.CaptureGpuMemoryUsage);
+    EnableD3D12Provider(g_sessionHandle, libraryOptions.TrackApiObjects);
+    EnableDxgkProvider(g_sessionHandle, libraryOptions.TrackGpuTiming, libraryOptions.TrackApiObjects);
+
+    EnableProvider(g_sessionHandle, DirectStorage::DStorageEtwProvider, 0xFFFFFFFFFFFFFFFFULL, TRACE_LEVEL_VERBOSE);
 
     std::thread consumer(ConsumerThread);
 

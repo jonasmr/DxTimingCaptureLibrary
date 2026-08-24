@@ -3,42 +3,54 @@
 
 #pragma once
 
+#include <cstddef>
 #include <exception>
+#include <string>
 #include <thread>
+#include <vector>
 
 // Include ApiObjectCallbacks's full definition so `std::unique_ptr<ApiObjectCallbacks>` works
 // under clang-cl (clang's STL eagerly instantiates the deleter, which requires a complete type).
 #include <DxEtwLibrary/EtwCallbacks.h>
 #include <DxEtwLibrary/EtwDiagnostics.h>
+#include <DxEtwLibrary/DxEtwEventHandler.h>
 
-class DxEtwEventHandler;
+using namespace DirectX::Etw;
+
 struct _EVENT_RECORD;
+
+// A diagnostic the library reported through OnDiagnostic during a session,
+// retained so a test can assert on what the library surfaced.
+struct SessionDiagnostic
+{
+    DiagnosticSeverity Severity;
+    DiagnosticCode Code;
+    std::wstring Message;
+};
 
 // Drives a real-time ETW session end to end for the functional tests: it starts a
 // trace, enables the D3D12 and DXGK providers, pumps event records into a
 // DxEtwEventHandler on a consumer thread, and (on End) flushes deferred entries and
 // records ETW data-loss totals. State is per-instance (no globals), so each test owns
 // an isolated session.
-class SimpleEtwSession
+class SimpleEtwSession : public DiagnosticsSink
 {
     std::thread m_thread;
     bool m_running = false;
 
     std::wstring m_sessionName;
     unsigned long long m_sessionHandle = 0; // TRACEHANDLE, kept opaque in the header
-    std::unique_ptr<DxEtwEventHandler> m_handler;
 
     std::unique_ptr<ApiObjectCallbacks> m_apiObjectCallbacks;
     std::unique_ptr<RuntimeFailureCallbacks> m_runtimeFailureCallbacks;
+    std::unique_ptr<GpuTimingsCallbacks> m_gpuTimingsCallbacks;
+    std::unique_ptr<GpuEngineActivityCallbacks> m_gpuEngineActivityCallbacks;
+    std::unique_ptr<DirectStorageCallbacks> m_directStorageCallbacks;
 
-    // Captures the first exception thrown out of HandleEventRecord on the consumer
-    // thread (for example when a callback returns a failure HRESULT, which the
-    // library turns into a throw). A test observes it via RethrowConsumerException.
+    std::unique_ptr<DxEtwEventHandler> m_handler;
+
     std::exception_ptr m_consumerException;
-
-    // ETW data-loss totals for the session, populated from the trace's logfile
-    // header after ProcessTrace returns.
-    DirectX::Etw::LostEventStatistics m_lostEventStatistics{};
+    std::vector<SessionDiagnostic> m_diagnostics;
 
     void ConsumerThread();
 
@@ -70,6 +82,29 @@ public:
         m_runtimeFailureCallbacks = std::move(callbacks);
     }
 
+    // Supplies the GpuTimingsCallbacks the handler will drive. Optional: if not set,
+    // the session installs a no-op implementation and leaves GPU-timing capture off.
+    // Setting it turns on TrackGpuTiming for this session (see Begin).
+    void SetGpuTimingsCallbacks(std::unique_ptr<GpuTimingsCallbacks> callbacks)
+    {
+        m_gpuTimingsCallbacks = std::move(callbacks);
+    }
+
+    // Supplies the DirectStorageCallbacks the handler will drive. Optional: if not set, the
+    // session installs a no-op implementation.
+    void SetDirectStorageCallbacks(std::unique_ptr<DirectStorageCallbacks> callbacks)
+    {
+        m_directStorageCallbacks = std::move(callbacks);
+    }
+
+    // Supplies the GpuEngineActivityCallbacks the handler will drive. Optional: if not
+    // set, the session installs a no-op implementation and leaves packet tracking off.
+    // Setting it turns on TrackGpuEngineActivity for this session (see Begin).
+    void SetGpuEngineActivityCallbacks(std::unique_ptr<GpuEngineActivityCallbacks> callbacks)
+    {
+        m_gpuEngineActivityCallbacks = std::move(callbacks);
+    }
+
     void Begin();
 
     // Stops the trace, joins the consumer thread, flushes any deferred entries
@@ -78,11 +113,13 @@ public:
     // safe to read without further synchronization.
     void End();
 
-    // ETW data-loss totals last seen for this session. Zero under normal load.
-    DirectX::Etw::LostEventStatistics GetLostEventStatistics() const
-    {
-        return m_lostEventStatistics;
-    }
+    // DiagnosticsSink: the library calls this on the consumer thread as it reports
+    // problems (lost events, clock issues, ...), exactly as it does in production.
+    void OnDiagnostic(DiagnosticSeverity severity, DiagnosticCode code, std::wstring_view message) override;
+
+    // Number of diagnostics the library reported with the given code. Tests use
+    // this to assert, e.g., that no EventsLost/BuffersLost diagnostic fired.
+    size_t CountDiagnostics(DiagnosticCode code) const;
 
     // Rethrows the first exception (if any) that propagated out of the handler on
     // the consumer thread, so a test can assert on the library's failure behavior.

@@ -10,7 +10,7 @@
 // constants from the D3D12 ETW manifest headers, so those must be included
 // first — the library's own pch.h includes them in this same order.
 #include <external/d3d/d3d12.h>
-#include <D3D12Events.h>
+#include <external/d3d/D3D12Events.h>
 
 #include <DxEtwLibrary/TicksToNanoseconds.h>
 #include <DxEtwLibrary/GpuTimingData.h>
@@ -42,26 +42,11 @@ namespace
         }
     };
 
-    // Builds a handler with no-op callbacks (none are exercised by these tests)
-    // and the supplied diagnostics sink.
-    std::unique_ptr<DxEtwEventHandler> MakeHandler(std::unique_ptr<DiagnosticsSink> sink)
+    std::unique_ptr<DxEtwEventHandler> MakeHandler(TimestampConverter& converter, DiagnosticsSink* sink)
     {
-        Options options{};
-        return std::make_unique<DxEtwEventHandler>(
-            options,
-            true,
-            std::make_unique<NoOpApiObjectCallbacks>(),
-            std::make_unique<NoOpPixCounterCallbacks>(),
-            std::make_unique<NoOpResidencyEventCallbacks>(),
-            std::make_unique<NoOpPixEventCallbacks>(),
-            std::make_unique<NoOpMonitorEventCallbacks>(),
-            std::make_unique<NoOpGpuTimingsCallbacks>(),
-            std::make_unique<NoOpDxgkObjectCallbacks>(),
-            std::make_unique<NoOpPipelineStateEventCallbacks>(),
-            std::move(sink),
-            std::make_unique<NoOpRuntimeFailureCallbacks>(),
-            std::make_unique<NoOpTimestampConverter>(),
-            1234u);
+        DxEtwEventCallbacks callbacks;
+        callbacks.DiagnosticsSink = sink;
+        return DxEtwEventHandler::Create(1234u, {}, callbacks, converter);
     }
 
     EVENT_TRACE_LOGFILE MakeLogfile(ULONG eventsLost, ULONG buffersLost)
@@ -117,39 +102,34 @@ TEST(CalibratedClockDiagnostics, BackwardsGpuTickReportsError)
 
 TEST(LostEventReporting, NoLossReportsNothing)
 {
-    auto sink = std::make_unique<CapturingDiagnosticsSink>();
-    auto* sinkPtr = sink.get();
-    auto handler = MakeHandler(std::move(sink));
+    NoOpTimestampConverter converter;
+    CapturingDiagnosticsSink sink;
+    auto handler = MakeHandler(converter, &sink);
 
     handler->ReportTraceStatistics(MakeLogfile(0, 0));
 
-    EXPECT_TRUE(sinkPtr->Diagnostics.empty());
-    EXPECT_EQ(0u, handler->GetLostEventStatistics().EventsLost);
-    EXPECT_EQ(0u, handler->GetLostEventStatistics().BuffersLost);
+    EXPECT_TRUE(sink.Diagnostics.empty());
 }
 
 TEST(LostEventReporting, NewLossReportsErrorsAndAccumulates)
 {
-    auto sink = std::make_unique<CapturingDiagnosticsSink>();
-    auto* sinkPtr = sink.get();
-    auto handler = MakeHandler(std::move(sink));
+    NoOpTimestampConverter converter;
+    CapturingDiagnosticsSink sink;
+    auto handler = MakeHandler(converter, &sink);
 
     handler->ReportTraceStatistics(MakeLogfile(5, 2));
 
-    ASSERT_EQ(2u, sinkPtr->Diagnostics.size());
-    EXPECT_EQ(DiagnosticCode::EventsLost, sinkPtr->Diagnostics[0].Code);
-    EXPECT_EQ(DiagnosticCode::BuffersLost, sinkPtr->Diagnostics[1].Code);
-    EXPECT_EQ(DiagnosticSeverity::Error, sinkPtr->Diagnostics[0].Severity);
-
-    EXPECT_EQ(5u, handler->GetLostEventStatistics().EventsLost);
-    EXPECT_EQ(2u, handler->GetLostEventStatistics().BuffersLost);
+    ASSERT_EQ(2u, sink.Diagnostics.size());
+    EXPECT_EQ(DiagnosticCode::EventsLost, sink.Diagnostics[0].Code);
+    EXPECT_EQ(DiagnosticCode::BuffersLost, sink.Diagnostics[1].Code);
+    EXPECT_EQ(DiagnosticSeverity::Error, sink.Diagnostics[0].Severity);
 }
 
 TEST(LostEventReporting, CumulativeCountsReportOnlyTheDelta)
 {
-    auto sink = std::make_unique<CapturingDiagnosticsSink>();
-    auto* sinkPtr = sink.get();
-    auto handler = MakeHandler(std::move(sink));
+    NoOpTimestampConverter converter;
+    CapturingDiagnosticsSink sink;
+    auto handler = MakeHandler(converter, &sink);
 
     // The logfile header carries cumulative totals, so re-reporting the same
     // totals must not re-report a loss, and only the increase should fire.
@@ -157,8 +137,7 @@ TEST(LostEventReporting, CumulativeCountsReportOnlyTheDelta)
     handler->ReportTraceStatistics(MakeLogfile(5, 0)); // unchanged: silent
     handler->ReportTraceStatistics(MakeLogfile(8, 0)); // +3 events
 
-    ASSERT_EQ(2u, sinkPtr->Diagnostics.size());
-    EXPECT_EQ(DiagnosticCode::EventsLost, sinkPtr->Diagnostics[0].Code);
-    EXPECT_EQ(DiagnosticCode::EventsLost, sinkPtr->Diagnostics[1].Code);
-    EXPECT_EQ(8u, handler->GetLostEventStatistics().EventsLost);
+    ASSERT_EQ(2u, sink.Diagnostics.size());
+    EXPECT_EQ(DiagnosticCode::EventsLost, sink.Diagnostics[0].Code);
+    EXPECT_EQ(DiagnosticCode::EventsLost, sink.Diagnostics[1].Code);
 }

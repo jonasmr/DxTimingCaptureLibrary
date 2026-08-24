@@ -7,25 +7,23 @@
 
 #include <DxEtwLibrary/Types.h>
 
-// Consumer callback interfaces. The library calls these as it decodes and
-// correlates ETW events; a consumer implements them to store the data wherever
-// it likes (see <DxEtwLibrary/NoOpCallbacks.h> for no-op bases to derive from).
+namespace DirectX::Etw
+{
+
+// Callback interfaces that you implement, that the library will call into to tell
+// you when relevant things are reported via ETW.
 //
-// Threading: all callbacks are invoked synchronously on the thread that calls
-// DxEtwEventHandler::HandleEventRecord / OnDataComplete (i.e. your ETW consumer
-// thread). The library holds no locks and assumes a single such thread; any
-// storage written from a callback that other threads also touch must be guarded
-// by the consumer.
+// Threading: all callbacks run synchronously on the thread that calls
+// DxEtwEventHandler::HandleEventRecord/OnDataComplete. The library holds no
+// locks. Of course, guard any storage shared with other threads yourself.
+// 
+// Methods with an _Out_ id parameter must set it on S_OK to a unique, stable,
+// non-zero value (a monotonically increasing counter works), because the library
+// feeds those ids into later callbacks.
 //
-// Return-value contract: return S_OK on success. Returning a failure HRESULT is
-// treated as fatal - the library throws an exception carrying that HRESULT out of
-// HandleEventRecord / OnDataComplete and lets it propagate to the consumer (the
-// same way a decode failure on malformed event data propagates). The consumer
-// owns the try/catch around those calls (it owns the ProcessTrace loop) and
-// decides what a failure means; a propagating exception must not be allowed to
-// unwind through ETW. Methods with an _Out_ id parameter must set it on S_OK: the
-// library feeds these ids into later callbacks, so a unique, stable, non-zero
-// value is required (a monotonically increasing counter works).
+// Return-value: return S_OK on success. A failure HRESULT is fatal - the
+// library throws it out of HandleEventRecord / OnDataComplete (as a decode failure
+// would) and it must not unwind through ETW.
 
 class PixCounterCallbacks
 {
@@ -39,34 +37,44 @@ public:
 
     virtual ~PixCounterCallbacks() = default;
 
-    virtual HRESULT StorePixCounterInfo(
+    virtual HRESULT OnPixCounterInfo(
         UINT64 groupId,
         UINT32 processId,
         PCWSTR name,
         PCWSTR description,
         PCWSTR units,
-        DirectX::Etw::CounterFlags flags,
+        CounterFlags flags,
         double min,
         double max,
-        UINT64* counterId) = 0;
+        _Out_ UINT64* counterId) = 0;
 
-    virtual HRESULT StorePixCounterInfoWithDefinition(
+    virtual HRESULT OnPixCounterInfoWithDefinition(
         UINT64 groupId,
         UINT32 processId,
         PCWSTR name,
         PCWSTR description,
         PCWSTR counterDefinition,
         PCWSTR units,
-        DirectX::Etw::CounterFlags flags,
+        CounterFlags flags,
         double min,
         double max,
-        UINT64* counterId) = 0;
+        _Out_ UINT64* counterId) = 0;
 
-    virtual HRESULT StorePixCounterBudget(UINT64 counterId, UINT64 budgetCounterId, DirectX::Etw::CounterBudgetType budgetType, DirectX::Etw::CounterBudgetSource budgetSource) = 0;
+    virtual HRESULT OnPixCounterBudget(
+        UINT64 counterId,
+        UINT64 budgetCounterId,
+        CounterBudgetType budgetType,
+        CounterBudgetSource budgetSource) = 0;
 
-    virtual HRESULT StorePixCounter(const _In_count_(count) CounterDataPoint* dataPoints, UINT32 count) = 0;
+    virtual HRESULT OnPixCounterData(
+        const _In_count_(count) CounterDataPoint* dataPoints,
+        UINT32 count) = 0;
 
-    virtual HRESULT StorePixCounterGroup(UINT64 parentGroupId, PCWSTR name, PCWSTR description, UINT64* groupId) = 0;
+    virtual HRESULT OnPixCounterGroup(
+        UINT64 parentGroupId,
+        PCWSTR name,
+        PCWSTR description,
+        _Out_ UINT64* groupId) = 0;
 };
 
 class ResidencyEventCallbacks
@@ -74,9 +82,9 @@ class ResidencyEventCallbacks
 public:
     virtual ~ResidencyEventCallbacks() = default;
 
-    virtual HRESULT StoreResidenceOperation(const DirectX::Etw::ResidencyOperation* data) = 0;
-    virtual HRESULT StoreDemotedAllocationData(const DirectX::Etw::DemotedAllocation* data, UINT32 count) = 0;
-    virtual HRESULT StoreAllocationMigrationData(const DirectX::Etw::AllocationMigration* data, UINT32 count) = 0;
+    virtual HRESULT OnResidencyOperation(const ResidencyOperation* data) = 0;
+    virtual HRESULT OnDemotedAllocations(const DemotedAllocation* data, UINT32 count) = 0;
+    virtual HRESULT OnAllocationMigrations(const AllocationMigration* data, UINT32 count) = 0;
 };
 
 class PixEventCallbacks
@@ -84,16 +92,17 @@ class PixEventCallbacks
 public:
     virtual ~PixEventCallbacks() = default;
 
-    virtual HRESULT StorePixEvents(
+    virtual HRESULT OnPixEvents(
         UINT32 processId,
         UINT32 threadId,
         _In_count_(count) const PixCpuEvent* pEvents,
         _In_count_(count) UINT64* pContextIds,
         UINT32 count) = 0;
-    virtual HRESULT StorePixGpuEvents(_In_count_(count) const DirectX::Etw::GpuEvent* pGpuEvents, UINT32 count) = 0;
+
+    virtual HRESULT OnPixGpuEvents(_In_count_(count) const GpuEvent* pGpuEvents, UINT32 count) = 0;
     virtual HRESULT FinalizeGpuEventsForCpuEventIds(_In_count_(count) const UINT64* pEventIds, UINT32 count) = 0;
 
-    virtual HRESULT StoreMemoryEvent(const DirectX::Etw::PixMemoryEvent* data) = 0;
+    virtual HRESULT OnMemoryEvent(const PixMemoryEvent* data) = 0;
 };
 
 class MonitorEventCallbacks
@@ -101,10 +110,10 @@ class MonitorEventCallbacks
 public:
     virtual ~MonitorEventCallbacks() = default;
 
-    virtual HRESULT AddMonitor(wchar_t const* monitorDescription, wchar_t const* adapterDescription, UINT64* monitorId) = 0;
-    virtual HRESULT UpdateMonitor(UINT64 monitorId, wchar_t const* monitorDescription, wchar_t const* adapterDescription) = 0;
+    virtual HRESULT OnMonitor(wchar_t const* monitorDescription, wchar_t const* adapterDescription, _Out_ UINT64* monitorId) = 0;
+    virtual HRESULT OnMonitorUpdate(UINT64 monitorId, wchar_t const* monitorDescription, wchar_t const* adapterDescription) = 0;
 
-    virtual HRESULT StoreVSync(UINT64 monitorId, INT64 timestamp) = 0;
+    virtual HRESULT OnVSync(UINT64 monitorId, INT64 timestamp) = 0;
 };
 
 class GpuTimingsCallbacks
@@ -112,26 +121,32 @@ class GpuTimingsCallbacks
 public:
     virtual ~GpuTimingsCallbacks() = default;
 
-    virtual HRESULT DefineGpuExecution(
+    virtual HRESULT OnGpuExecutionBegin(
         UINT32 processId,
         UINT32 threadId,
         UINT64 apiCommandQueueId,
         INT64 cpuSubmitTime,
         UINT64 presentToken,
-        UINT64* gpuExecutionId) = 0;
+        _Out_ UINT64* gpuExecutionId) = 0;
 
-    virtual HRESULT CompleteGpuExecution(UINT64 gpuExecutionId) = 0;
+    virtual HRESULT OnGpuExecutionComplete(UINT64 gpuExecutionId) = 0;
 
-    virtual HRESULT StoreGpuWork2(
+    virtual HRESULT OnGpuWork(
         UINT64 hardwareCommandQueueId,
         UINT64 gpuExecutionId,
         UINT32 commandListIndexInExecution,
         UINT64 apiMarkerId,
         INT64 beginTimestamp,
-        INT64 endTimestamp,
-        UINT64* gpuWorkId) = 0;
+        INT64 endTimestamp) = 0;
 
-    virtual HRESULT StoreApiMarker(UINT32 processId, UINT32 threadId, PCWSTR name, INT64 timeStamp, UINT64* apiMarkerId) = 0;
+    virtual HRESULT OnApiMarker(UINT32 processId, UINT32 threadId, PCWSTR name, INT64 timeStamp, _Out_ UINT64* apiMarkerId) = 0;
+
+    // Associates a friendly name (set via ID3D12Object::SetName) with a command list within a gpu execution.
+    // The commandListIndexInExecution matches the value passed to OnGpuWork for the same command list.
+    // Precondition: OnGpuWork must already have been called for this gpuExecutionId/commandListIndexInExecution
+    // (and before OnGpuExecutionComplete). Naming a command list that recorded no work, or an unknown execution,
+    // is treated as inconsistent capture data and fails with E_MISSING_REF_CAPTURE_DATA.
+    virtual HRESULT OnCommandListName(UINT64 gpuExecutionId, UINT32 commandListIndexInExecution, PCWSTR name) = 0;
 };
 
 class DxgkObjectCallbacks
@@ -139,20 +154,43 @@ class DxgkObjectCallbacks
 public:
     virtual ~DxgkObjectCallbacks() = default;
 
-    virtual HRESULT DefineHardwareAdapter(UINT64* adapterId) = 0;
-    virtual HRESULT UpdateHardwareAdapter(UINT64 adapterId, PCWSTR name) = 0;
+    virtual HRESULT OnHardwareAdapter(_Out_ UINT64* adapterId) = 0;
+    virtual HRESULT OnHardwareAdapterName(UINT64 adapterId, PCWSTR name) = 0;
 
-    virtual HRESULT DefineHardwareCommandQueue(UINT64 adapterId, UINT64* hardwareCommandQueueId) = 0;
-    virtual HRESULT UpdateHardwareCommandQueue(UINT64 hardwareCommandQueueId, PCWSTR name) = 0;
+    virtual HRESULT OnHardwareCommandQueue(UINT64 adapterId, _Out_ UINT64* hardwareCommandQueueId) = 0;
+    virtual HRESULT OnHardwareCommandQueueName(UINT64 hardwareCommandQueueId, PCWSTR name) = 0;
 
-    virtual HRESULT DefineApiCommandQueue(
+    virtual HRESULT OnApiCommandQueue(
         UINT32 processId,
         UINT64 hardwareAdapterId,
         PCWSTR commandQueueType,
         INT64 beginTimestamp,
-        UINT64* apiCommandQueueId) = 0;
-    virtual HRESULT UpdateApiCommandQueue(UINT64 apiCommandQueueId, PCWSTR name) = 0;
-    virtual HRESULT EndApiCommandQueue(UINT64 apiCommandQueueId, INT64 endTimestamp) = 0;
+        _Out_ UINT64* apiCommandQueueId) = 0;
+
+    virtual HRESULT OnApiCommandQueueName(UINT64 apiCommandQueueId, PCWSTR name) = 0;
+    virtual HRESULT OnApiCommandQueueEnd(UINT64 apiCommandQueueId, INT64 endTimestamp) = 0;
+};
+
+// What the GPU engines were doing, across every process on the machine rather
+// than just the traced one. Needs DxEtwLibraryOptions::TrackGpuEngineActivity
+// and a trace carrying the DxgKrnl provider.
+class GpuEngineActivityCallbacks
+{
+public:
+    virtual ~GpuEngineActivityCallbacks() = default;
+
+    // Treat the span as an upper bound on engine time rather than a measurement of it.
+    // It opens when the packet is handed to the driver, which can be well before the engine picks it up.
+    //
+    // processId is 0 when the packet could not be traced back to a process.
+    // hardwareCommandQueueId is 0 when the engine is not known yet.
+    virtual HRESULT OnGpuEngineActivity(
+        UINT32 processId,
+        UINT64 hardwareCommandQueueId,
+        UINT32 engineAffinity,
+        INT64 submitTimestamp,
+        INT64 completeTimestamp,
+        bool hardwareScheduled) = 0;
 };
 
 class PipelineStateEventCallbacks
@@ -160,7 +198,12 @@ class PipelineStateEventCallbacks
 public:
     virtual ~PipelineStateEventCallbacks() = default;
 
-    virtual HRESULT AddPsoCompilation(UINT32 processId, UINT32 threadId, UINT64 apiObjectId, INT64 startTimestamp, INT64 endTimestamp) = 0;
+    virtual HRESULT OnPsoCompilation(
+        UINT32 processId,
+        UINT32 threadId,
+        UINT64 apiObjectId,
+        INT64 startTimestamp,
+        INT64 endTimestamp) = 0;
 };
 
 class ApiObjectCallbacks
@@ -170,7 +213,7 @@ public:
 
     virtual HRESULT OnDeviceCreation(
         INT64 timestamp,
-        const DirectX::Etw::DeviceInfo* device,
+        const DeviceInfo* device,
         _Out_ UINT64* objectId) = 0;
 
     virtual HRESULT OnDescriptorHeapCreation(
@@ -179,7 +222,7 @@ public:
         UINT32 processId,
         UINT32 threadId,
         const D3D12_DESCRIPTOR_HEAP_DESC* desc,
-        const DirectX::Etw::ObjectPlacementInfo* placement,
+        const ObjectPlacementInfo* placement,
         _Out_ UINT64* objectId) = 0;
 
     // A committed resource owns an implicit heap, so it carries that heap's
@@ -190,7 +233,7 @@ public:
         UINT32 processId,
         UINT32 threadId,
         const D3D12_RESOURCE_DESC* desc,
-        const DirectX::Etw::ObjectPlacementInfo* placement,
+        const ObjectPlacementInfo* placement,
         const D3D12_HEAP_PROPERTIES* heapProperties,
         D3D12_HEAP_FLAGS heapFlags,
         _Out_ UINT64* objectId) = 0;
@@ -203,18 +246,19 @@ public:
         UINT32 processId,
         UINT32 threadId,
         const D3D12_RESOURCE_DESC* desc,
-        const DirectX::Etw::ObjectPlacementInfo* placement,
+        const ObjectPlacementInfo* placement,
         _Out_ UINT64* objectId) = 0;
 
-    // A reserved (tiled) resource has no backing memory at creation, so it has
-    // no GPU virtual address; it carries tiling information instead.
+    // A reserved (tiled) resource reserves a GPU virtual address range at
+    // creation but has no physical backing until tiles are mapped
+    // (UpdateTileMappings).
     virtual HRESULT OnReservedResourceCreation(
         INT64 timestamp,
         UINT64 deviceId,
         UINT32 processId,
         UINT32 threadId,
         const D3D12_RESOURCE_DESC* desc,
-        const DirectX::Etw::ReservedResourceInfo* reserved,
+        const ReservedResourceInfo* reserved,
         _Out_ UINT64* objectId) = 0;
 
     virtual HRESULT OnHeapCreation(
@@ -223,7 +267,7 @@ public:
         UINT32 processId,
         UINT32 threadId,
         const D3D12_HEAP_DESC* desc,
-        const DirectX::Etw::ObjectPlacementInfo* placement,
+        const ObjectPlacementInfo* placement,
         _Out_ UINT64* objectId) = 0;
 
     virtual HRESULT OnPipelineStateCreation(
@@ -231,7 +275,7 @@ public:
         UINT64 deviceId,
         UINT32 processId,
         UINT32 threadId,
-        const DirectX::Etw::ObjectPlacementInfo* placement,
+        const ObjectPlacementInfo* placement,
         _Out_ UINT64* objectId) = 0;
 
     virtual HRESULT OnStateObjectCreation(
@@ -239,7 +283,7 @@ public:
         UINT64 deviceId,
         UINT32 processId,
         UINT32 threadId,
-        const DirectX::Etw::ObjectPlacementInfo* placement,
+        const ObjectPlacementInfo* placement,
         _Out_ UINT64* objectId) = 0;
 
     virtual HRESULT OnCommandAllocatorCreation(
@@ -248,7 +292,7 @@ public:
         UINT32 processId,
         UINT32 threadId,
         D3D12_COMMAND_LIST_TYPE commandListType,
-        const DirectX::Etw::ObjectPlacementInfo* placement,
+        const ObjectPlacementInfo* placement,
         _Out_ UINT64* objectId) = 0;
 
     virtual HRESULT OnMetaCommandCreation(
@@ -257,13 +301,13 @@ public:
         UINT32 processId,
         UINT32 threadId,
         REFGUID commandId,
-        const DirectX::Etw::ObjectPlacementInfo* placement,
+        const ObjectPlacementInfo* placement,
         _Out_ UINT64* objectId) = 0;
 
-    virtual HRESULT OnObjectDestruction(INT64 timestamp, DirectX::Etw::ApiObjectType type, UINT64 objectId) = 0;
+    virtual HRESULT OnObjectDestruction(INT64 timestamp, ApiObjectType type, UINT64 objectId) = 0;
 
-    virtual HRESULT UpdateApiObjectName(INT64 timestamp, DirectX::Etw::ApiObjectType type, UINT64 objectId, const wchar_t* name) = 0;
-    virtual HRESULT UpdateApiObjectSizeAndAddress(INT64 timestamp, DirectX::Etw::ApiObjectType type, UINT64 objectId, UINT64 allocationSize, UINT64 baseAddress) = 0;
+    virtual HRESULT OnApiObjectName(INT64 timestamp, ApiObjectType type, UINT64 objectId, std::wstring_view name) = 0;
+    virtual HRESULT OnApiObjectSizeAndAddress(INT64 timestamp, ApiObjectType type, UINT64 objectId, UINT64 allocationSize, UINT64 baseAddress) = 0;
 };
 
 // Optional interface for the D3D12 runtime's "failure journal" - the runtime's
@@ -271,10 +315,6 @@ public:
 // driver-reported errors, out-of-memory, and command-list removals (for example a
 // CopyBufferRegion rejected while recording, which is surfaced to the app only
 // later at Close()).
-//
-// This is the one optional callback interface: nothing else the library reports
-// depends on it, so you may pass null for it when constructing DxEtwEventHandler,
-// in which case these failures are not reported.
 class RuntimeFailureCallbacks
 {
 public:
@@ -298,3 +338,93 @@ public:
         UINT32 threadId,
         std::string_view message) = 0;
 };
+
+class DirectStorageCallbacks
+{
+public:
+    virtual ~DirectStorageCallbacks() = default;
+
+    // A file referenced by DirectStorage, reported once when first seen. path is the
+    // file's name when the file was introduced by an OpenFile event; when a request
+    // references a file that was never opened in the trace, the library synthesizes a
+    // placeholder name of the form "file# <id>" so the file is still identifiable.
+    virtual HRESULT OnDirectStorageFile(UINT16 fileId, INT64 timestamp, std::wstring_view path) = 0;
+
+    // A DirectStorage queue, reported once when first seen. name is the queue's name
+    // when it was introduced by a CreateQueue event, and empty when the queue was
+    // first seen via an enqueue on a queue whose creation was not captured.
+    virtual HRESULT OnDirectStorageQueue(UINT16 queueId, INT64 timestamp, std::string_view name) = 0;
+
+    // A read request whose enqueue and completion have been correlated. Reported only
+    // when its enqueue was observed in the trace; a completion whose enqueue predates
+    // the trace is dropped (no callback) rather than reported with empty fields --
+    // unlike the status, fence and set-event callbacks below, which still report an
+    // uncorrelated completion (with EnqueueTimestamp equal to CompletionTimestamp).
+    struct ReadRequest
+    {
+        UINT16 QueueId;
+        UINT16 FileId;
+        UINT32 EnqueueThreadId;
+        INT64 EnqueueTimestamp;
+        INT64 CompletionTimestamp;
+        UINT64 Offset;
+        UINT32 Size;
+        UINT8 CompressionType;
+        UINT8 ShuffleType;
+    };
+    virtual HRESULT OnDirectStorageReadRequest(const ReadRequest& request) = 0;
+
+    // A status-array notification whose enqueue and completion have been correlated.
+    // When the completion is seen without a matching enqueue, EnqueueTimestamp equals
+    // CompletionTimestamp.
+    struct StatusNotification
+    {
+        UINT16 QueueId;
+        UINT32 EnqueueThreadId;
+        INT64 EnqueueTimestamp;
+        INT64 CompletionTimestamp;
+        UINT64 StatusArray;
+        UINT64 Index;
+    };
+    virtual HRESULT OnDirectStorageStatus(const StatusNotification& status) = 0;
+
+    // A fence signal whose enqueue and completion have been correlated. When the
+    // completion is seen without a matching enqueue, EnqueueTimestamp equals
+    // CompletionTimestamp.
+    struct FenceSignal
+    {
+        UINT16 QueueId;
+        UINT32 EnqueueThreadId;
+        INT64 EnqueueTimestamp;
+        INT64 CompletionTimestamp;
+        UINT64 Fence;
+        UINT64 Value;
+    };
+    virtual HRESULT OnDirectStorageFenceSignal(const FenceSignal& signal) = 0;
+
+    // A Win32-event set request whose enqueue and completion have been correlated.
+    // When the completion is seen without a matching enqueue, EnqueueTimestamp equals
+    // CompletionTimestamp.
+    struct SetEventNotification
+    {
+        UINT16 QueueId;
+        UINT32 EnqueueThreadId;
+        INT64 EnqueueTimestamp;
+        INT64 CompletionTimestamp;
+        UINT64 Handle;
+    };
+    virtual HRESULT OnDirectStorageSetEvent(const SetEventNotification& setEvent) = 0;
+
+    // A queue submit (the point at which enqueued requests are handed to the runtime
+    // for execution).
+    struct Submit
+    {
+        UINT16 QueueId;
+        UINT32 EnqueueThreadId;
+        INT64 Timestamp;
+        bool AutoSubmitted;
+    };
+    virtual HRESULT OnDirectStorageSubmit(const Submit& submit) = 0;
+};
+
+} // namespace DirectX::Etw

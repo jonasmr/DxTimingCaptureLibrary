@@ -4,6 +4,9 @@
 #include "pch.h"
 #include "AllocationTracker.h"
 
+namespace DirectX::Etw
+{
+
 AllocationTracker::Handle AllocationTracker::AddAllocationInfo(uint64_t timestamp, AllocationInfo info)
 {
     Handle handle = m_allocationInfos.size();
@@ -129,3 +132,5 @@ uint64_t AllocationTracker::GetMemoryUsage(const AllocationInfo& info)
     }
     return result;
 }
+
+} // namespace DirectX::Etw

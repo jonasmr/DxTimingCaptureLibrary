@@ -20,7 +20,7 @@ public:
     PerfettoTraceWriter(std::string outputPath, bool captureAll);
     ~PerfettoTraceWriter();
 
-    // Mints a unique, non-zero id for the library's _Out_ id parameters. A single
+    // Produces a unique, non-zero id for the library's _Out_ id parameters. A single
     // counter keeps every id distinct across all callback categories, which is what
     // the library requires (it feeds ids from one callback into another).
     uint64_t NextId();
@@ -29,6 +29,13 @@ public:
     void NameHwQueue(uint64_t hwQueueId, const wchar_t* name);
     void EmitGpuWork(uint64_t hwQueueId, uint64_t apiMarkerId, int64_t beginNs, int64_t endNs);
     void RegisterApiMarker(uint64_t apiMarkerId, const wchar_t* name, int64_t ts);
+
+    // GPU work from processes other than the traced one, on a track beside the
+    // engine it ran on. Each span covers submit to completion, so it is an upper
+    // bound on engine time rather than a measurement of it. processId 0 means the
+    // packet's owner was never identified, hardwareCommandQueueId 0 means the
+    // engine wasn't either.
+    void EmitOtherProcessGpuWork(uint32_t processId, uint64_t hardwareCommandQueueId, int64_t beginNs, int64_t endNs, bool hardwareScheduled);
 
     // API command queues (lifetime slices).
     void DefineApiQueue(uint64_t apiQueueId, int64_t beginNs, const wchar_t* type);

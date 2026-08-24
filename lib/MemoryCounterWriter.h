@@ -3,6 +3,9 @@
 
 #pragma once
 
+namespace DirectX::Etw
+{
+
 class MemoryCounterWriter
 {
 public:
@@ -11,7 +14,7 @@ public:
         // Add a GPU Memory counter group for this adapter for memory counters like commit totals etc.
         std::wstringstream groupName;
         groupName << L"GPU Memory (Adapter #" << AdapterId.Value << L")";
-        ThrowFailure(callbacks->StorePixCounterGroup(0, groupName.str().c_str(), L"", &m_memoryCountersGroupId));
+        ThrowFailure(callbacks->OnPixCounterGroup(0, groupName.str().c_str(), L"", &m_memoryCountersGroupId));
     }
 
     enum CounterType
@@ -78,7 +81,7 @@ public:
 
         if (!dataPoints.empty())
         {
-            ThrowFailure(callbacks->StorePixCounter(dataPoints.data(), (UINT32)dataPoints.size()));
+            ThrowFailure(callbacks->OnPixCounterData(dataPoints.data(), (UINT32)dataPoints.size()));
         }
     }
 
@@ -146,7 +149,7 @@ private:
         // because the graph rendering in PIX recognizes it
         // as a constant indicating that auto scaling to the
         // maximum reported value is required.
-        ThrowFailure(callbacks->StorePixCounterInfo(
+        ThrowFailure(callbacks->OnPixCounterInfo(
             m_memoryCountersGroupId,
             processId,
             m_memoryCounterDescs[counterType].Name,
@@ -182,7 +185,7 @@ private:
             {
                 if (m_memoryCounterDescs[linkedCounterType.value()].CounterId != 0)
                 {
-                    ThrowFailure(callbacks->StorePixCounterBudget(
+                    ThrowFailure(callbacks->OnPixCounterBudget(
                         m_memoryCounterDescs[link.UsageCounterType].CounterId,
                         m_memoryCounterDescs[link.BudgetCounterType].CounterId,
                         CounterBudgetType::Maximum,
@@ -207,6 +210,8 @@ private:
         if (counterId == 0)
             return;
         PixCounterCallbacks::CounterDataPoint dataPoint = {counterId, timestamp, ToMegaBytes(valueInBytes)};
-        ThrowFailure(callbacks->StorePixCounter(&dataPoint, 1));
+        ThrowFailure(callbacks->OnPixCounterData(&dataPoint, 1));
     }
 };
+
+} // namespace DirectX::Etw

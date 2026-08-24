@@ -11,10 +11,14 @@
 #include <string>
 #include <tuple>
 
+#pragma warning(push)
+#pragma warning(disable : 4369)
 #include "MarkerOp.h"
+#pragma warning(pop)
 
 #include <DxEtwLibrary/EtwDiagnostics.h>
 #include <DxEtwLibrary/EtwException.h>
+#include <DxEtwLibrary/TicksToNanoseconds.h>
 
 namespace DirectX::Etw
 {
@@ -65,7 +69,6 @@ namespace DirectX::Etw
     public:
         void AddCalibration(uint64_t gpuFrequency, uint64_t gpuClockTicks, uint64_t cpuClockTicks, DiagnosticsSink* diagnosticsSink)
         {
-            // <internal>
             // The runtime used DdiCalibrateGpuClock to query the clock values.
             // The gpuFrequency and gpuClock values are populated from the GPU.
             // The cpuClock value is documented as being populated by
@@ -74,14 +77,12 @@ namespace DirectX::Etw
             // We need this because at various points we get GPU timestamps, but
             // we don't know the GPU frequency at that timestamp and so we need
             // to be able to look that up.  Note: in real life, we don't ever
-            // expect to see the GPU frequency change - this is something that
-            // happens on old Qualcomm or some old non-3D AMD engines.
+            // expect to see the GPU frequency change on modern GPUs.
             //
             // We could also use this to try and convert to CPU time (which is
             // something that we do in timing captures because we want to
             // present CPU and (possibly multi-) GPU events on the same
             // timeline.  We don't need to do this here.
-            // </internal>
 
             // We expect AddCalibration to always be called with increasing CPU
             // and GPU time (since clocks can't ever run backwards)
@@ -116,6 +117,22 @@ namespace DirectX::Etw
         {
             auto& entry = GetEntry(gpuClockTicks);
             return TicksToNanoseconds(gpuClockTicks, entry.GpuFrequency);
+        }
+
+        uint64_t GpuTicksToQpc(uint64_t gpuClockTicks, uint64_t qpcFrequency) const
+        {
+            auto& entry = GetEntry(gpuClockTicks);
+            if (entry.GpuFrequency == 0)
+            {
+                Errors::ThrowToolException(E_UNEXPECTED, L"Clock calibration reported a zero GPU frequency");
+            }
+
+            // Signed, because the timestamp may sit either side of the anchor.
+            int64_t gpuDelta = static_cast<int64_t>(gpuClockTicks) - static_cast<int64_t>(entry.GpuClockTicks);
+            int64_t qpcDelta = static_cast<int64_t>(
+                (static_cast<double>(gpuDelta) * static_cast<double>(qpcFrequency)) / static_cast<double>(entry.GpuFrequency));
+
+            return static_cast<uint64_t>(static_cast<int64_t>(entry.CpuClockTicks) + qpcDelta);
         }
 
         uint64_t GetCalibratedGpuTicks(uint64_t gpuClockTicks)
@@ -172,6 +189,8 @@ namespace DirectX::Etw
 
         std::vector<DxgkDevice> m_devices;
 
+    public:
+
         struct UmContext
         {
             uint32_t ProcessId;
@@ -180,12 +199,15 @@ namespace DirectX::Etw
             uint64_t Adapter;
             uint32_t NodeOrdinal;
             uint32_t EngineOrdinal;
+            uint32_t EngineAffinity;
 
             bool operator< (uint64_t context) const
             {
                 return Context < context;
             }
         };
+
+    private:
 
         std::vector<UmContext> m_umContexts;
 
@@ -293,7 +315,7 @@ namespace DirectX::Etw
 
             if (it == m_umContexts.end() || it->Context != context)
             {
-                m_umContexts.insert(it, { processId, context, contextHandle, adapter, nodeOrdinal, engineOrdinal });
+                m_umContexts.insert(it, { processId, context, contextHandle, adapter, nodeOrdinal, engineOrdinal, engineAffinity });
             }
             else
             {
@@ -305,6 +327,7 @@ namespace DirectX::Etw
                 it->Adapter = adapter;
                 it->NodeOrdinal = nodeOrdinal;
                 it->EngineOrdinal = engineOrdinal;
+                it->EngineAffinity = engineAffinity;
             }
         }
 
@@ -346,6 +369,15 @@ namespace DirectX::Etw
             return nullptr;
         }
 
+        // Matches on the DXG object pointer, not the OS handle TryGetHwQueue above uses.
+        HwQueue const* TryGetHwQueueByQueueObject(uint64_t hwQueue) const
+        {
+            auto it = std::find_if(m_hwQueues.rbegin(), m_hwQueues.rend(), [&](auto& h) { return h.Queue == hwQueue; });
+            if (it != m_hwQueues.rend())
+                return &*it;
+            return nullptr;
+        }
+
         void AddClockCalibration(
             uint64_t adapter,
             uint32_t nodeOrdinal,
@@ -370,6 +402,17 @@ namespace DirectX::Etw
         {
             auto umContext = GetUmContextForCalibratedClock(context);
             return GetOrCreateDxgkContext(umContext.Adapter, umContext.NodeOrdinal, umContext.EngineOrdinal);
+        }
+
+        UmContext const* TryGetUmContextForTimingContext(uint64_t context) const
+        {
+            if (auto umc = TryGetUmContextForCalibratedClock(context))
+                return umc;
+
+            if (auto hwq = TryGetHwQueueForCalibratedClock(context))
+                return &hwq->ParentUmContext;
+
+            return nullptr;
         }
 
     private:

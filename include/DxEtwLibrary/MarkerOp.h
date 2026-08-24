@@ -2,14 +2,10 @@
 // Licensed under the MIT License.
 
 #pragma once
+// This is a custom header that's based on data in D3D12MarkerApiEnums.idl.
 
 namespace DirectX::Etw
 {
-    //
-    // This code originally came from
-    // %SDXROOT%\onecoreuap\windows\DirectX\dxg\d3d12\D3DCore\Inc\CommandList12.hpp,
-    // and needs to be kept in sync with it.
-    //
 #define ETW_MANIFEST_MARKER_VALUE( ID ) (ID - MSG_Map_D3D12_MARKER_API_SETMARKER)
 
 // Render ops which exist on multiple command list types and insert markers on all applicable command lists
@@ -47,9 +43,7 @@ namespace DirectX::Etw
     macro(DispatchMesh                  , DISPATCHMESH )                \
     macro(Barrier                       , BARRIER )                     \
     macro(DispatchGraph                 , DISPATCHGRAPH )               \
-    macro(SetProgram                    , SETPROGRAM ) /* Counting SetProgram as render op since with work graphs, */ \
-                                                       /* // there is an option that set some backing store memory with the program and initializes the memory. */ \
-                                                       /* // The memory initialization being a GPU operation that should have a history buffer op for PIX */ \
+    macro(SetProgram                    , SETPROGRAM )                  \
     macro(WaitBarrier                   , WAITBARRIER )                 \
     macro(SignalBarrier                 , SIGNALBARRIER )               \
     macro(ConvertLinearAlgebraMatrix    , CONVERT_LINEAR_ALGEBRA_MATRIX) \

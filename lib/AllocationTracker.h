@@ -8,6 +8,9 @@
 
 #include <DxEtwLibrary/EventTypes.h>
 
+namespace DirectX::Etw
+{
+
 // Class to help work with ETW allocation events like
 // D3D12 AllocationInfo and DXGK DeviceAllocation
 class AllocationTracker
@@ -58,3 +61,5 @@ private:
     std::vector<DeviceAllocation> m_deviceAllocations; // TODO maybe should store as a map with vidMmAlloc + vidMmGlobalAlloc pair as key? or just vidMmGlobalAlloc?
     std::vector<AdapterAllocation> m_adapterAllocations;
 };
+
+} // namespace DirectX::Etw

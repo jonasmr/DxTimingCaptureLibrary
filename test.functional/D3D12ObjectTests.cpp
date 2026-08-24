@@ -9,10 +9,17 @@
 #include <d3dcompiler.h>
 
 #include <DxEtwLibrary/DxEtwEventHandler.h>
-#include "EtwSession.h"
-#include "RecordingApiObjectCallbacks.h"
 
 using namespace DirectX::Etw;
+
+// Internal library headers: the heap-classification tests at the bottom of this file drive a
+// D3D12ObjectProcessor directly rather than through a live D3D12 device. These headers are part
+// of the library's private implementation and expect the DirectX::Etw namespace to be in scope.
+#include <external/DxEtwLibrary/lib/D3D12ObjectProcessor.h>
+#include <external/DxEtwLibrary/lib/AllocationTracker.h>
+
+#include "EtwSession.h"
+#include "RecordingApiObjectCallbacks.h"
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -21,7 +28,7 @@ using namespace DirectX::Etw;
 namespace
 {
     // Converts the current QPC reading to nanoseconds on the same timebase the library
-    // uses for callback timestamps (QPC ticks -> ns, see TimestampConverterImpl).
+    // uses for callback timestamps (QPC ticks -> ns, see QpcTimestampConverter).
     INT64 GetCurrentTimestampNs()
     {
         LARGE_INTEGER frequency;
@@ -594,14 +601,12 @@ TEST(D3D12ObjectTests, PipelineState_Compute)
     session.End();
     session.RethrowConsumerException();
 
-    // Unlike the other object types, the pipeline-state callback carries no identifying
-    // payload (no desc, no shader hash), and the runtime/driver create their own
-    // internal PSOs during device and root-signature setup. So we can't attribute a
-    // specific record to our CreateComputePipelineState call; we confirm that the
-    // OnPipelineStateCreation path fires on our thread with sane common details. (We
-    // also can't assert the placement: whether a PSO is backed by an allocation, and so
-    // reports a real GPU virtual address vs. a sentinel, is driver-dependent — pinning
-    // that edge belongs in a unit test.)
+    // The pipeline-state callback carries no identifying payload (no desc, no
+    // shader hash), and the runtime/driver create their own internal PSOs, so we
+    // can't attribute a specific record to our CreateComputePipelineState call. We
+    // only confirm the OnPipelineStateCreation path fires on our thread with sane
+    // common details. Placement (real GPU virtual address vs. sentinel) is
+    // driver-dependent, so that edge belongs in a unit test.
     const auto* record = FindRecord(recorder->PipelineStates, [&](const auto& r)
     {
         return r.ProcessId == GetCurrentProcessId() && r.ThreadId == GetCurrentThreadId();
@@ -781,9 +786,345 @@ TEST(D3D12ObjectTests, LostEventStatisticsAreZeroUnderNormalLoad)
     session.End();
     session.RethrowConsumerException();
 
-    // This exercises the ReportTraceStatistics / GetLostEventStatistics plumbing. A
-    // light, in-process workload should not overrun the ETW buffers.
-    const LostEventStatistics statistics = session.GetLostEventStatistics();
-    EXPECT_EQ(statistics.EventsLost, 0u);
-    EXPECT_EQ(statistics.BuffersLost, 0u);
+    // A light, in-process workload should not overrun the ETW buffers, so the
+    // library should report no lost-event diagnostics through the sink.
+    EXPECT_EQ(session.CountDiagnostics(DiagnosticCode::EventsLost), 0u);
+    EXPECT_EQ(session.CountDiagnostics(DiagnosticCode::BuffersLost), 0u);
+}
+
+// ---------------------------------------------------------------------------
+// Heap implied/real classification
+//
+// These tests drive a D3D12ObjectProcessor directly (no live D3D12 device) so they can
+// deterministically order the heap/resource/allocation events that decide whether a heap is an
+// implied heap (owned by a committed resource, so not stored on its own) or a real heap (stored).
+// ---------------------------------------------------------------------------
+
+namespace
+{
+    // Drives a D3D12ObjectProcessor and counts the resulting object creations/destructions.
+    class ApiObjectProcessorHarness
+    {
+        static constexpr uint64_t kDeviceAddress = 0xD000;
+        static constexpr uint32_t kProcessId = 1234;
+        static constexpr uint32_t kThreadId = 5678;
+
+        AllocationTracker m_allocationTracker;
+        RecordingApiObjectCallbacks m_callbacks;
+        D3D12ObjectProcessor m_processor{ m_allocationTracker };
+        uint64_t m_nextTimestamp = 0;
+
+    public:
+        int HeapCreationCount = 0;
+        int ResourceCreationCount = 0;
+        int DestructionCount = 0;
+
+        ApiObjectProcessorHarness()
+        {
+            // The processor raises this for every inserted object; the owner normally hooks it up.
+            m_processor.OnApiObjectInserted = [](D3D12ObjectProcessor::ApiObjectInsertedEventArgs) {};
+
+            // Register a device so heaps and resources can resolve a device id.
+            D3D12ObjectProcessor::DeviceEntry deviceEntry{};
+            deviceEntry.ObjectAddress = kDeviceAddress;
+            deviceEntry.Timestamp = NextTimestamp();
+            m_processor.AddDevice(deviceEntry, &m_callbacks);
+            RefreshCounts();
+        }
+
+        // Registers a virtual-address allocation for an object so that, once its heap event arrives,
+        // the heap is "complete" (has a GpuVirtualAddress) and gets inserted immediately.
+        void AddAllocation(uint64_t objectAddress, uint64_t gpuVirtualAddress, uint64_t size)
+        {
+            AllocationInfo info{};
+            info.device = kDeviceAddress;
+            info.object = objectAddress;
+
+            VirtualAddressInfos virtualAddress{};
+            virtualAddress.startAddress = gpuVirtualAddress;
+            virtualAddress.endAddress = gpuVirtualAddress + size;
+            info.virtualAddressInfos.push_back(virtualAddress);
+
+            const auto handle = m_allocationTracker.AddAllocationInfo(NextTimestamp(), info);
+            m_processor.AddAllocationInfo(handle, NextTimestamp(), &m_callbacks);
+            RefreshCounts();
+        }
+
+        void AddHeap(uint64_t heapAddress, uint64_t conjoinedResource, uint64_t size)
+        {
+            D3D12ObjectProcessor::HeapEntry heapEntry;
+            heapEntry.Timestamp = NextTimestamp();
+            heapEntry.ObjectAddress = heapAddress;
+            heapEntry.ProcessId = kProcessId;
+            heapEntry.ThreadId = kThreadId;
+            heapEntry.ConjoinedResource = conjoinedResource;
+            heapEntry.Placement.GpuVirtualSize = size;
+            m_processor.AddHeap(heapEntry, kDeviceAddress, &m_callbacks);
+            RefreshCounts();
+        }
+
+        void AddCommittedResource(uint64_t resourceAddress, uint64_t size)
+        {
+            D3D12ObjectProcessor::ResourceEntry entry;
+            entry.Timestamp = NextTimestamp();
+            entry.ObjectAddress = resourceAddress;
+            entry.ProcessId = kProcessId;
+            entry.ThreadId = kThreadId;
+            entry.ResourceHeapType = ResourceHeapType::ImplicitHeap;
+            entry.Desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+            entry.Desc.Width = size;
+            m_processor.AddResource(entry, kDeviceAddress, &m_callbacks);
+            RefreshCounts();
+        }
+
+        void AddPlacedResource(uint64_t resourceAddress, uint64_t heapAddress, uint64_t heapOffset, uint64_t size)
+        {
+            D3D12ObjectProcessor::ResourceEntry entry;
+            entry.Timestamp = NextTimestamp();
+            entry.ObjectAddress = resourceAddress;
+            entry.ProcessId = kProcessId;
+            entry.ThreadId = kThreadId;
+            entry.ResourceHeapType = ResourceHeapType::ImmutableHeap;
+            entry.ResourceHeapData.HeapObjectAddress = heapAddress;
+            entry.ResourceHeapData.ImmutableHeapOffset = heapOffset;
+            entry.ResourceHeapData.PlacedSize = size;
+            entry.Desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+            entry.Desc.Width = size;
+            m_processor.AddResource(entry, kDeviceAddress, &m_callbacks);
+            RefreshCounts();
+        }
+
+        void AddImplicitResource(uint64_t resourceAddress)
+        {
+            D3D12ObjectProcessor::ResourceEntry entry;
+            entry.Timestamp = NextTimestamp();
+            entry.ObjectAddress = resourceAddress;
+            entry.ProcessId = kProcessId;
+            entry.ThreadId = kThreadId;
+            entry.ResourceHeapType = ResourceHeapType::ImplicitResource;
+            entry.Desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+            m_processor.AddResource(entry, kDeviceAddress, &m_callbacks);
+            RefreshCounts();
+        }
+
+        void DestroyHeap(uint64_t heapAddress)
+        {
+            m_processor.DestroyApiObject(ApiObjectType::Heap, heapAddress, NextTimestamp(), &m_callbacks);
+            RefreshCounts();
+        }
+
+        void Finalize()
+        {
+            m_processor.ProcessDeferredEntries(&m_callbacks);
+            RefreshCounts();
+        }
+
+    private:
+        uint64_t NextTimestamp() { return ++m_nextTimestamp; }
+
+        // The recording callbacks capture every creation/destruction; surface the counts the
+        // classification tests assert on. Committed, placed and reserved resources are all
+        // "resources" here (implicit resources are never stored as their own object).
+        void RefreshCounts()
+        {
+            HeapCreationCount = static_cast<int>(m_callbacks.Heaps.size());
+            ResourceCreationCount = static_cast<int>(
+                m_callbacks.CommittedResources.size()
+                + m_callbacks.PlacedResources.size()
+                + m_callbacks.ReservedResources.size());
+            DestructionCount = static_cast<int>(m_callbacks.Destructions.size());
+        }
+    };
+}
+
+// An implied heap observed before its owning committed resource (rundown-style order) must not be
+// stored as its own object; the committed resource owns the memory instead.
+TEST(D3D12ObjectTests, ImpliedHeap_HeapBeforeResource_NotStored)
+{
+    constexpr uint64_t resourceAddress = 0xA0;
+    constexpr uint64_t heapAddress = 0xE0;
+    constexpr uint64_t size = 4096;
+
+    ApiObjectProcessorHarness harness;
+    harness.AddAllocation(heapAddress, 0x10000, size);
+    harness.AddHeap(heapAddress, /*conjoinedResource*/ resourceAddress, size);
+
+    // The heap is ambiguous (non-zero conjoined resource) so it's held back, not stored.
+    EXPECT_EQ(harness.HeapCreationCount, 0);
+
+    harness.AddCommittedResource(resourceAddress, size);
+
+    // The committed resource is stored and the implied heap is dropped, even after finalization.
+    EXPECT_EQ(harness.ResourceCreationCount, 1);
+    EXPECT_EQ(harness.HeapCreationCount, 0);
+
+    harness.Finalize();
+    EXPECT_EQ(harness.HeapCreationCount, 0);
+    EXPECT_EQ(harness.ResourceCreationCount, 1);
+}
+
+// An implied heap observed after its owning committed resource (live-style order) must not be stored.
+TEST(D3D12ObjectTests, ImpliedHeap_ResourceBeforeHeap_NotStored)
+{
+    constexpr uint64_t resourceAddress = 0xA0;
+    constexpr uint64_t heapAddress = 0xE0;
+    constexpr uint64_t size = 4096;
+
+    ApiObjectProcessorHarness harness;
+    harness.AddCommittedResource(resourceAddress, size);
+    EXPECT_EQ(harness.ResourceCreationCount, 0); // deferred until the heap arrives
+
+    harness.AddAllocation(heapAddress, 0x10000, size);
+    harness.AddHeap(heapAddress, /*conjoinedResource*/ resourceAddress, size);
+
+    EXPECT_EQ(harness.ResourceCreationCount, 1);
+    EXPECT_EQ(harness.HeapCreationCount, 0);
+
+    harness.Finalize();
+    EXPECT_EQ(harness.HeapCreationCount, 0);
+    EXPECT_EQ(harness.ResourceCreationCount, 1);
+}
+
+// A heap with no conjoined resource is treated as a real heap and is stored immediately.
+TEST(D3D12ObjectTests, RealHeap_NoConjoinedResource_StoredImmediately)
+{
+    constexpr uint64_t heapAddress = 0xE0;
+    constexpr uint64_t size = 65536;
+
+    ApiObjectProcessorHarness harness;
+    harness.AddAllocation(heapAddress, 0x10000, size);
+    harness.AddHeap(heapAddress, /*conjoinedResource*/ 0, size);
+
+    EXPECT_EQ(harness.HeapCreationCount, 1);
+
+    harness.Finalize();
+    EXPECT_EQ(harness.HeapCreationCount, 1); // not double-stored
+}
+
+// A real heap's conjoined resource points at a runtime implicit resource. In the common (live) order
+// that implicit resource is reported before the heap, so the heap is recognized as real and stored
+// immediately without waiting for the capture to end.
+TEST(D3D12ObjectTests, RealHeap_ImplicitResourceBeforeHeap_StoredImmediately)
+{
+    constexpr uint64_t heapAddress = 0xE0;
+    constexpr uint64_t implicitResourceAddress = 0xA0;
+    constexpr uint64_t size = 65536;
+
+    ApiObjectProcessorHarness harness;
+    harness.AddImplicitResource(implicitResourceAddress);
+    EXPECT_EQ(harness.ResourceCreationCount, 0); // implicit resources aren't stored as their own object
+
+    harness.AddAllocation(heapAddress, 0x10000, size);
+    harness.AddHeap(heapAddress, /*conjoinedResource*/ implicitResourceAddress, size);
+
+    EXPECT_EQ(harness.HeapCreationCount, 1);
+    EXPECT_EQ(harness.ResourceCreationCount, 0);
+
+    harness.Finalize();
+    EXPECT_EQ(harness.HeapCreationCount, 1); // not double-stored
+    EXPECT_EQ(harness.ResourceCreationCount, 0);
+}
+
+// If the heap arrives before its implicit resource it's held back as ambiguous. When the implicit
+// resource arrives it reveals the heap is real, so the heap is materialized right then rather than
+// waiting for the capture to end.
+TEST(D3D12ObjectTests, RealHeap_ImplicitResourceAfterHeap_StoredWhenResourceArrives)
+{
+    constexpr uint64_t heapAddress = 0xE0;
+    constexpr uint64_t implicitResourceAddress = 0xA0;
+    constexpr uint64_t size = 65536;
+
+    ApiObjectProcessorHarness harness;
+    harness.AddAllocation(heapAddress, 0x10000, size);
+    harness.AddHeap(heapAddress, /*conjoinedResource*/ implicitResourceAddress, size);
+    EXPECT_EQ(harness.HeapCreationCount, 0); // ambiguous, held back
+
+    harness.AddImplicitResource(implicitResourceAddress);
+    EXPECT_EQ(harness.HeapCreationCount, 1); // implicit resource reveals the heap is real, materialized now
+    EXPECT_EQ(harness.ResourceCreationCount, 0);
+
+    harness.Finalize();
+    EXPECT_EQ(harness.HeapCreationCount, 1); // not double-stored
+    EXPECT_EQ(harness.ResourceCreationCount, 0);
+}
+
+// A placed resource referencing a heap proves the heap is a real (immutable) heap, so an ambiguous
+// heap observed first is materialized once the placed resource arrives.
+TEST(D3D12ObjectTests, ExplicitHeap_PlacedResourceAfterHeap_Stored)
+{
+    constexpr uint64_t heapAddress = 0xE0;
+    constexpr uint64_t resourceAddress = 0xA0;
+    constexpr uint64_t size = 65536;
+
+    ApiObjectProcessorHarness harness;
+    harness.AddAllocation(heapAddress, 0x10000, size);
+    harness.AddHeap(heapAddress, /*conjoinedResource*/ 0x9999, size); // non-zero, ambiguous
+    EXPECT_EQ(harness.HeapCreationCount, 0);
+
+    harness.AddPlacedResource(resourceAddress, heapAddress, /*heapOffset*/ 0, /*size*/ 4096);
+
+    EXPECT_EQ(harness.HeapCreationCount, 1);
+    EXPECT_EQ(harness.ResourceCreationCount, 1);
+
+    harness.Finalize();
+    EXPECT_EQ(harness.HeapCreationCount, 1); // not double-stored
+    EXPECT_EQ(harness.ResourceCreationCount, 1);
+}
+
+// A placed resource observed before its heap also results in the heap being stored.
+TEST(D3D12ObjectTests, ExplicitHeap_PlacedResourceBeforeHeap_Stored)
+{
+    constexpr uint64_t heapAddress = 0xE0;
+    constexpr uint64_t resourceAddress = 0xA0;
+    constexpr uint64_t size = 65536;
+
+    ApiObjectProcessorHarness harness;
+    harness.AddPlacedResource(resourceAddress, heapAddress, /*heapOffset*/ 0, /*size*/ 4096);
+    EXPECT_EQ(harness.ResourceCreationCount, 0); // deferred until the heap arrives
+
+    harness.AddAllocation(heapAddress, 0x10000, size);
+    harness.AddHeap(heapAddress, /*conjoinedResource*/ 0x9999, size); // non-zero, but a placed resource referenced it
+
+    EXPECT_EQ(harness.HeapCreationCount, 1);
+    EXPECT_EQ(harness.ResourceCreationCount, 1);
+
+    harness.Finalize();
+    EXPECT_EQ(harness.HeapCreationCount, 1); // not double-stored
+    EXPECT_EQ(harness.ResourceCreationCount, 1);
+}
+
+// An ambiguous heap that's never claimed by a committed resource is assumed to be a real heap and
+// is stored when the capture ends.
+TEST(D3D12ObjectTests, AmbiguousHeap_Unclaimed_StoredAtFinalize)
+{
+    constexpr uint64_t heapAddress = 0xE0;
+    constexpr uint64_t size = 65536;
+
+    ApiObjectProcessorHarness harness;
+    harness.AddAllocation(heapAddress, 0x10000, size);
+    harness.AddHeap(heapAddress, /*conjoinedResource*/ 0x9999, size);
+    EXPECT_EQ(harness.HeapCreationCount, 0);
+
+    harness.Finalize();
+    EXPECT_EQ(harness.HeapCreationCount, 1);
+}
+
+// An ambiguous heap destroyed before it's classified is materialized (so real heaps aren't lost)
+// and then destroyed.
+TEST(D3D12ObjectTests, AmbiguousHeap_DestroyedBeforeClassification_Materialized)
+{
+    constexpr uint64_t heapAddress = 0xE0;
+    constexpr uint64_t size = 65536;
+
+    ApiObjectProcessorHarness harness;
+    harness.AddAllocation(heapAddress, 0x10000, size);
+    harness.AddHeap(heapAddress, /*conjoinedResource*/ 0x9999, size);
+    EXPECT_EQ(harness.HeapCreationCount, 0);
+
+    harness.DestroyHeap(heapAddress);
+    EXPECT_EQ(harness.HeapCreationCount, 1);
+    EXPECT_EQ(harness.DestructionCount, 1);
+
+    harness.Finalize();
+    EXPECT_EQ(harness.HeapCreationCount, 1); // not double-stored
 }

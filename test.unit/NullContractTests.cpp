@@ -8,7 +8,7 @@
 // MarkerOp.h (pulled in transitively) expands the D3D12_MARKER_API_* constants
 // from the D3D12 ETW manifest headers, so those must be included first.
 #include <external/d3d/d3d12.h>
-#include <D3D12Events.h>
+#include <external/d3d/D3D12Events.h>
 
 #include <DxEtwLibrary/DxEtwEventHandler.h>
 
@@ -18,77 +18,61 @@ using namespace DirectX::Etw;
 
 namespace
 {
-    // Identifies which constructor argument to pass as null. The eight callbacks
-    // and the timestamp converter are required; the diagnostics sink and the
-    // runtime-failure callbacks are optional.
-    enum class NullSlot
+    // Owns a full set of no-op callbacks and hands out a DxEtwEventCallbacks that
+    // borrows them. Keep the instance alive as long as any handler built from Config().
+    struct FullCallbacks
     {
-        None,
-        ApiObject,
-        PixCounter,
-        Residency,
-        PixEvent,
-        Monitor,
-        GpuTimings,
-        DxgkObject,
-        PipelineState,
-        DiagnosticsSink,
-        RuntimeFailure,
-        TimestampConverter,
-    };
+        NoOpApiObjectCallbacks apiObject;
+        NoOpPixCounterCallbacks pixCounter;
+        NoOpResidencyEventCallbacks residency;
+        NoOpPixEventCallbacks pixEvent;
+        NoOpMonitorEventCallbacks monitor;
+        NoOpGpuTimingsCallbacks gpuTimings;
+        NoOpDxgkObjectCallbacks dxgkObject;
+        NoOpPipelineStateEventCallbacks pipelineState;
+        NoOpDirectStorageCallbacks directStorage;
+        NoOpGpuEngineActivityCallbacks gpuEngineActivity;
+        NullDiagnosticsSink diagnosticsSink;
+        NoOpRuntimeFailureCallbacks runtimeFailure;
 
-    std::unique_ptr<DxEtwEventHandler> MakeHandlerWithNull(NullSlot slot)
-    {
-        Options options{};
-        return std::make_unique<DxEtwEventHandler>(
-            options,
-            true,
-            slot == NullSlot::ApiObject ? nullptr : std::make_unique<NoOpApiObjectCallbacks>(),
-            slot == NullSlot::PixCounter ? nullptr : std::make_unique<NoOpPixCounterCallbacks>(),
-            slot == NullSlot::Residency ? nullptr : std::make_unique<NoOpResidencyEventCallbacks>(),
-            slot == NullSlot::PixEvent ? nullptr : std::make_unique<NoOpPixEventCallbacks>(),
-            slot == NullSlot::Monitor ? nullptr : std::make_unique<NoOpMonitorEventCallbacks>(),
-            slot == NullSlot::GpuTimings ? nullptr : std::make_unique<NoOpGpuTimingsCallbacks>(),
-            slot == NullSlot::DxgkObject ? nullptr : std::make_unique<NoOpDxgkObjectCallbacks>(),
-            slot == NullSlot::PipelineState ? nullptr : std::make_unique<NoOpPipelineStateEventCallbacks>(),
-            slot == NullSlot::DiagnosticsSink ? nullptr : std::make_unique<NullDiagnosticsSink>(),
-            slot == NullSlot::RuntimeFailure ? nullptr : std::make_unique<NoOpRuntimeFailureCallbacks>(),
-            slot == NullSlot::TimestampConverter ? nullptr : std::make_unique<NoOpTimestampConverter>(),
-            1234u);
-    }
+        DxEtwEventCallbacks Config()
+        {
+            DxEtwEventCallbacks callbacks;
+            callbacks.ApiObjectCallbacks = &apiObject;
+            callbacks.PixCounterCallbacks = &pixCounter;
+            callbacks.ResidencyEventCallbacks = &residency;
+            callbacks.PixEventCallbacks = &pixEvent;
+            callbacks.MonitorEventCallbacks = &monitor;
+            callbacks.GpuTimingsCallbacks = &gpuTimings;
+            callbacks.DxgkObjectCallbacks = &dxgkObject;
+            callbacks.PipelineStateEventCallbacks = &pipelineState;
+            callbacks.DirectStorageCallbacks = &directStorage;
+            callbacks.GpuEngineActivityCallbacks = &gpuEngineActivity;
+            callbacks.DiagnosticsSink = &diagnosticsSink;
+            callbacks.RuntimeFailureCallbacks = &runtimeFailure;
+            return callbacks;
+        }
+    };
 }
 
-TEST(CallbackNullContract, AllCallbacksPresentSucceeds)
+// Filling in every slot works.
+TEST(ConfigContract, FullyPopulatedSucceeds)
 {
+    NoOpTimestampConverter converter;
+    FullCallbacks callbacks;
     EXPECT_NO_THROW({
-        auto handler = MakeHandlerWithNull(NullSlot::None);
+        auto handler = DxEtwEventHandler::Create(1234u, {}, callbacks.Config(), converter);
         EXPECT_NE(handler, nullptr);
     });
 }
 
-// The diagnostics sink is the one optional argument: a null sink is fine and the
-// processor substitutes a no-op.
-TEST(CallbackNullContract, NullDiagnosticsSinkIsAllowed)
+// Every callback is optional: passing an empty callbacks bundle must still
+// succeed, with the library filling in no-ops.
+TEST(ConfigContract, NoConfigSucceeds)
 {
-    EXPECT_NO_THROW(MakeHandlerWithNull(NullSlot::DiagnosticsSink));
+    NoOpTimestampConverter converter;
+    EXPECT_NO_THROW({
+        auto handler = DxEtwEventHandler::Create(1234u, {}, {}, converter);
+        EXPECT_NE(handler, nullptr);
+    });
 }
-
-// The runtime-failure callbacks are also optional: a null is fine and means
-// journal-entry events are simply ignored.
-TEST(CallbackNullContract, NullRuntimeFailureCallbacksIsAllowed)
-{
-    EXPECT_NO_THROW(MakeHandlerWithNull(NullSlot::RuntimeFailure));
-}
-
-// Each required argument being null must be rejected at construction. (The thrown
-// exception type differs by UsePixUtility build mode, so assert only that it
-// throws.)
-TEST(CallbackNullContract, NullApiObjectCallbacksThrows)        { EXPECT_ANY_THROW(MakeHandlerWithNull(NullSlot::ApiObject)); }
-TEST(CallbackNullContract, NullPixCounterCallbacksThrows)       { EXPECT_ANY_THROW(MakeHandlerWithNull(NullSlot::PixCounter)); }
-TEST(CallbackNullContract, NullResidencyEventCallbacksThrows)   { EXPECT_ANY_THROW(MakeHandlerWithNull(NullSlot::Residency)); }
-TEST(CallbackNullContract, NullPixEventCallbacksThrows)         { EXPECT_ANY_THROW(MakeHandlerWithNull(NullSlot::PixEvent)); }
-TEST(CallbackNullContract, NullMonitorEventCallbacksThrows)     { EXPECT_ANY_THROW(MakeHandlerWithNull(NullSlot::Monitor)); }
-TEST(CallbackNullContract, NullGpuTimingsCallbacksThrows)       { EXPECT_ANY_THROW(MakeHandlerWithNull(NullSlot::GpuTimings)); }
-TEST(CallbackNullContract, NullDxgkObjectCallbacksThrows)       { EXPECT_ANY_THROW(MakeHandlerWithNull(NullSlot::DxgkObject)); }
-TEST(CallbackNullContract, NullPipelineStateEventCallbacksThrows){ EXPECT_ANY_THROW(MakeHandlerWithNull(NullSlot::PipelineState)); }
-TEST(CallbackNullContract, NullTimestampConverterThrows)        { EXPECT_ANY_THROW(MakeHandlerWithNull(NullSlot::TimestampConverter)); }

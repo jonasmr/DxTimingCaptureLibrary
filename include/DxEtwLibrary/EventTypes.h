@@ -5,6 +5,9 @@
 
 #include <vector>
 
+namespace DirectX::Etw
+{
+
 // from src/etw/DirectX-Direct3D12.man D3D12ResourceHeapType in Direct3D repo
 enum ResourceHeapType : uint32_t
 {
@@ -41,3 +44,5 @@ struct AllocationInfo
     std::vector<KMTInfos> kmtInfos;
 };
 
+
+} // namespace DirectX::Etw

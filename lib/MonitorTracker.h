@@ -3,6 +3,9 @@
 
 #pragma once
 
+namespace DirectX::Etw
+{
+
 class MonitorTracker
 {
     struct PerMonitorInfo
@@ -64,7 +67,7 @@ private:
         info.Description = description.empty() ? std::wstring(L"Monitor #{}") + std::to_wstring(++ monitorNumber) : description;
         info.AdapterDescription = adapterDescription.empty() ? std::to_wstring(id.second) : adapterDescription;
 
-        ThrowFailure(monitorEventCallbacks->AddMonitor(
+        ThrowFailure(monitorEventCallbacks->OnMonitor(
             info.Description.c_str(),
             info.AdapterDescription.c_str(),
             &info.MonitorId.Value));
@@ -74,9 +77,11 @@ private:
 
     void Update(MonitorEventCallbacks* monitorEventCallbacks, PerMonitorInfo const& info)
     {
-        ThrowFailure(monitorEventCallbacks->UpdateMonitor(
+        ThrowFailure(monitorEventCallbacks->OnMonitorUpdate(
             info.MonitorId.Value,
             info.Description.c_str(),
             info.AdapterDescription.c_str()));
     }
 };
+
+} // namespace DirectX::Etw

@@ -7,18 +7,18 @@
 
 #include "pch.h"
 
-#include <cstdlib> // strtoul
+#include <cstdlib>
 
 #include <DxEtwLibrary/DxEtwLibrary.h>
 
 #include "EtwConfig.h"               // shared with the basic sample (samples/basic/)
 #include "PerfettoCallbacks.h"
 #include "PerfettoTraceWriter.h"
-#include "TimestampConverterImpl.h"
 
 using namespace DirectX::Etw;
 
 static std::wstring g_etwSessionName;
+static std::wstring g_etlFilePath; // when non-empty, consume this .etl offline instead of a live session
 static std::atomic<bool> g_running(true);
 static TRACEHANDLE g_sessionHandle = 0;
 
@@ -47,11 +47,22 @@ ULONG WINAPI OnBuffer(PEVENT_TRACE_LOGFILE logfile)
 static void ConsumerThread()
 {
     EVENT_TRACE_LOGFILE trace = {};
-    trace.LoggerName = const_cast<LPWSTR>(g_etwSessionName.c_str());
-    trace.ProcessTraceMode =
-        PROCESS_TRACE_MODE_REAL_TIME |
-        PROCESS_TRACE_MODE_EVENT_RECORD |
-        PROCESS_TRACE_MODE_RAW_TIMESTAMP; // keep raw QPC timestamps
+    const bool offline = !g_etlFilePath.empty();
+    if (offline)
+    {
+        trace.LogFileName = const_cast<LPWSTR>(g_etlFilePath.c_str());
+        trace.ProcessTraceMode =
+            PROCESS_TRACE_MODE_EVENT_RECORD |
+            PROCESS_TRACE_MODE_RAW_TIMESTAMP;
+    }
+    else
+    {
+        trace.LoggerName = const_cast<LPWSTR>(g_etwSessionName.c_str());
+        trace.ProcessTraceMode =
+            PROCESS_TRACE_MODE_REAL_TIME |
+            PROCESS_TRACE_MODE_EVENT_RECORD |
+            PROCESS_TRACE_MODE_RAW_TIMESTAMP; // keep raw QPC timestamps
+    }
     trace.EventRecordCallback = OnEvent;
     trace.BufferCallback = OnBuffer;
 
@@ -82,110 +93,152 @@ BOOL WINAPI ConsoleHandler(DWORD signal)
     return FALSE;
 }
 
-int __cdecl main(int argc, char** argv)
+int __cdecl wmain(int argc, wchar_t** argv)
 {
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);
 
-    // Usage: DxEtwLibrary.sample.perfetto.exe [targetProcessId] [seconds] [--all]
+    // Usage: DxEtwLibrary.sample.perfetto.exe [targetProcessId] [seconds] [--all] [--no-other-processes] [--etl <path>]
     DWORD targetProcessId = GetCurrentProcessId();
     unsigned int runSeconds = 0;
     bool captureAll = false;
+    bool captureOtherProcesses = true;
+    std::wstring etlPath;
     int positional = 0;
     for (int i = 1; i < argc; ++i)
     {
-        std::string arg = argv[i];
-        if (arg == "--all" || arg == "-a")
+        std::wstring arg = argv[i];
+        if (arg == L"--all" || arg == L"-a")
         {
             captureAll = true;
         }
-        else if (arg == "--help" || arg == "-h" || arg == "/?")
+        else if (arg == L"--no-other-processes")
         {
-            printf("Usage: %s [targetProcessId] [seconds] [--all]\n"
-                   "  targetProcessId   process to observe (default: this process)\n"
-                   "  seconds           auto-stop after N seconds (default: run until Ctrl+C)\n"
-                   "  --all, -a         also capture D3D12 object lifetimes, API command\n"
-                   "                    queues, and PSO compiles\n"
-                   "                    (default: GPU Queue work + API Markers only)\n",
-                   argv[0]);
+            captureOtherProcesses = false;
+        }
+        else if (arg == L"--etl")
+        {
+            if (i + 1 >= argc)
+            {
+                printf("--etl requires a path. Use --help for usage.\n");
+                return 1;
+            }
+            etlPath = argv[++i];
+        }
+        else if (arg == L"--help" || arg == L"-h" || arg == L"/?")
+        {
+            wprintf(L"Usage: %ls [targetProcessId] [seconds] [--all] [--no-other-processes] [--etl <path>]\n"
+                    L"  targetProcessId   process to observe (default: this process)\n"
+                    L"  seconds           auto-stop after N seconds (default: run until Ctrl+C)\n"
+                    L"  --all, -a         also capture D3D12 object lifetimes, API command\n"
+                    L"                    queues, and PSO compiles\n"
+                    L"                    (without it: GPU Queue work and API Markers)\n"
+                    L"  --no-other-processes\n"
+                    L"                    drop the other-process GPU activity tracks, which\n"
+                    L"                    are on by default. They cover the whole machine, so\n"
+                    L"                    on a busy one they can crowd the target out of the\n"
+                    L"                    trace buffer\n"
+                    L"  --etl <path>      consume a previously-captured .etl file offline\n"
+                    L"                    instead of a live session;\n"
+                    L"                    'seconds' is ignored in this mode\n",
+                    argv[0]);
             return 0;
         }
         else if (positional == 0)
         {
-            targetProcessId = static_cast<DWORD>(strtoul(arg.c_str(), nullptr, 10));
+            targetProcessId = static_cast<DWORD>(wcstoul(arg.c_str(), nullptr, 10));
             if (targetProcessId == 0)
             {
-                printf("Invalid process id '%s'. Use --help for usage.\n", arg.c_str());
+                wprintf(L"Invalid process id '%ls'. Use --help for usage.\n", arg.c_str());
                 return 1;
             }
             positional = 1;
         }
         else if (positional == 1)
         {
-            runSeconds = static_cast<unsigned int>(strtoul(arg.c_str(), nullptr, 10));
+            runSeconds = static_cast<unsigned int>(wcstoul(arg.c_str(), nullptr, 10));
             positional = 2;
         }
     }
-    printf("Observing process %lu (%s), writing dxetw.perfetto-trace\n",
-           targetProcessId, captureAll ? "all categories" : "GPU Queue + API Markers");
+    const bool offline = !etlPath.empty();
+    g_etlFilePath = etlPath;
+    std::string categories = captureAll ? "all categories" : "GPU Queue + API Markers";
+    if (captureOtherProcesses)
+        categories += " + other processes";
+    if (offline)
+        wprintf(L"Reading %s, filtering to process %lu (%hs), writing dxetw.perfetto-trace\n",
+                etlPath.c_str(), targetProcessId, categories.c_str());
+    else
+        printf("Observing process %lu (%s), writing dxetw.perfetto-trace\n",
+               targetProcessId, categories.c_str());
 
     g_etwSessionName = L"DxEtwLibrary.sample.perfetto.session" + std::to_wstring(GetCurrentProcessId());
 
     auto writer = std::make_unique<PerfettoTraceWriter>("dxetw.perfetto-trace", captureAll);
-    PerfettoTraceWriter& w = *writer;
 
-    Options options{};
-    options.CaptureGpuMemoryUsage = true;
-    options.CaptureGpuTiming = true; // GPU work spans
+    DxEtwLibraryOptions libraryOptions{};
+    libraryOptions.TrackApiObjects = true;
+    libraryOptions.TrackGpuTiming = true;
+    libraryOptions.TrackGpuEngineActivity = captureOtherProcesses;
 
-    g_dxEtwEventHandler = std::make_unique<DxEtwEventHandler>(
-        options,
-        true,
-        std::make_unique<PerfettoApiObjectCallbacks>(w),
-        std::make_unique<NoOpPixCounterCallbacks>(),
-        std::make_unique<NoOpResidencyEventCallbacks>(),
-        std::make_unique<NoOpPixEventCallbacks>(),
-        std::make_unique<NoOpMonitorEventCallbacks>(),
-        std::make_unique<PerfettoGpuTimingsCallbacks>(w),
-        std::make_unique<PerfettoDxgkObjectCallbacks>(w),
-        std::make_unique<PerfettoPipelineStateEventCallbacks>(w),
-        nullptr, // diagnostics sink (optional)
-        nullptr, // runtime failure callbacks (optional)
-        std::make_unique<TimestampConverterImpl>(),
-        targetProcessId);
+    QpcTimestampConverter timestampConverter = QpcTimestampConverter::ForCurrentMachine();
+    PerfettoApiObjectCallbacks apiObjectCallbacks(*writer);
+    PerfettoGpuTimingsCallbacks gpuTimingsCallbacks(*writer);
+    PerfettoDxgkObjectCallbacks dxgkObjectCallbacks(*writer);
+    PerfettoPipelineStateEventCallbacks pipelineStateEventCallbacks(*writer);
+    PerfettoGpuEngineActivityCallbacks gpuEngineActivityCallbacks(*writer, targetProcessId);
 
-    EventTraceProperties properties{};
-    auto u = ::StartTraceW(&g_sessionHandle, g_etwSessionName.c_str(), properties);
-    if (u != ERROR_SUCCESS)
+    DxEtwEventCallbacks callbacks;
+    callbacks.ApiObjectCallbacks = &apiObjectCallbacks;
+    callbacks.GpuTimingsCallbacks = &gpuTimingsCallbacks;
+    callbacks.DxgkObjectCallbacks = &dxgkObjectCallbacks;
+    callbacks.PipelineStateEventCallbacks = &pipelineStateEventCallbacks;
+    callbacks.GpuEngineActivityCallbacks = &gpuEngineActivityCallbacks;
+
+    g_dxEtwEventHandler = DxEtwEventHandler::Create(targetProcessId, libraryOptions, callbacks, timestampConverter);
+
+    if (offline)
     {
-        printf("StartTraceW failed: %lu\n", u);
-        return 1;
+        // ProcessTrace consumes the whole .etl and returns; just wait for it.
+        std::thread consumer(ConsumerThread);
+        printf("Processing ETL file...\n");
+        consumer.join();
     }
-
-    EnableD3D12Provider(g_sessionHandle, options.CaptureGpuMemoryUsage);
-    EnableDxgkProvider(g_sessionHandle, options.CaptureGpuTiming, options.CaptureGpuMemoryUsage);
-
-    std::thread consumer(ConsumerThread);
-
-    if (runSeconds)
-        printf("Listening for %u seconds (or Ctrl+C)...\n", runSeconds);
     else
-        printf("Listening for events (Ctrl+C to stop)...\n");
-
-    unsigned int elapsedMs = 0;
-    while (g_running)
     {
-        Sleep(200);
-        elapsedMs += 200;
-        if (runSeconds && elapsedMs >= runSeconds * 1000)
-            break;
+        EventTraceProperties properties{};
+        auto u = ::StartTraceW(&g_sessionHandle, g_etwSessionName.c_str(), properties);
+        if (u != ERROR_SUCCESS)
+        {
+            printf("StartTraceW failed: %lu\n", u);
+            return 1;
+        }
+
+        EnableD3D12Provider(g_sessionHandle, libraryOptions.TrackApiObjects);
+        EnableDxgkProvider(g_sessionHandle, libraryOptions.TrackGpuTiming, libraryOptions.TrackApiObjects);
+
+        std::thread consumer(ConsumerThread);
+
+        if (runSeconds)
+            printf("Listening for %u seconds (or Ctrl+C)...\n", runSeconds);
+        else
+            printf("Listening for events (Ctrl+C to stop)...\n");
+
+        unsigned int elapsedMs = 0;
+        while (g_running)
+        {
+            Sleep(200);
+            elapsedMs += 200;
+            if (runSeconds && elapsedMs >= runSeconds * 1000)
+                break;
+        }
+
+        printf("Stopping session...\n");
+        u = ControlTraceW(g_sessionHandle, g_etwSessionName.c_str(), properties, EVENT_TRACE_CONTROL_STOP);
+        if (u != ERROR_SUCCESS)
+            printf("ControlTraceW failed: %lu\n", u);
+
+        consumer.join();
     }
-
-    printf("Stopping session...\n");
-    u = ControlTraceW(g_sessionHandle, g_etwSessionName.c_str(), properties, EVENT_TRACE_CONTROL_STOP);
-    if (u != ERROR_SUCCESS)
-        printf("ControlTraceW failed: %lu\n", u);
-
-    consumer.join();
 
     writer->Finish();
     printf("Done\n");

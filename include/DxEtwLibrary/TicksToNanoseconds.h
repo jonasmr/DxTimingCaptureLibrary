@@ -34,10 +34,10 @@ namespace DirectX::Etw
         }
 
         uint64_t remainder;
-#if defined(_M_X64) && !defined(__clang__)
+#if defined(_M_X64)
         return _udiv128(productHigh, productLow, frequency, &remainder);
-#elif defined(_M_ARM64) || defined(__clang__)
-        // _udiv128 is not generally available on ARM64 MSVC OR clang-cl, perform valid 128/64 division manually.
+#elif defined(_M_ARM64)
+        // _udiv128 is not generally available on ARM64 MSVC, perform valid 128/64 division manually.
         // We know the result fits in 64 bits because productHigh < frequency.
         uint64_t q = 0;
         uint64_t r = productHigh;

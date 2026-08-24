@@ -36,6 +36,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AdapterTracker.h" />
+    <ClInclude Include="DirectStorageProcessor.h" />
     <ClInclude Include="DxEtwProcessor.h" />
     <ClInclude Include="Identifiers.h" />
     <ClInclude Include="MemoryCounterWriter.h" />

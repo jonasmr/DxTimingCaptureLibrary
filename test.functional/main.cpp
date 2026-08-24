@@ -5,8 +5,38 @@
 
 #include <external/googletest/VisualStudioWorkarounds.h>
 
+#include "GpuWorkload.h"
+
 int __cdecl main(int argc, char** argv)
 {
+    // Relaunched by GpuEngineActivityTests to produce GPU work from a second process.
+    bool submitGpuWork = false;
+    auto adapter = DxEtwLibraryTest::GpuAdapterKind::Default;
+    for (int i = 1; i < argc; ++i)
+    {
+        if (strcmp(argv[i], DxEtwLibraryTest::SubmitGpuWorkSwitch) == 0)
+        {
+            submitGpuWork = true;
+        }
+        else if (strcmp(argv[i], DxEtwLibraryTest::WarpAdapterSwitch) == 0)
+        {
+            adapter = DxEtwLibraryTest::GpuAdapterKind::Warp;
+        }
+    }
+
+    if (submitGpuWork)
+    {
+        try
+        {
+            DxEtwLibraryTest::SubmitGpuWorkAndWait(adapter);
+        }
+        catch (...)
+        {
+            return DxEtwLibraryTest::SubmitGpuWorkFailedExitCode;
+        }
+        return 0;
+    }
+
     testing::InitGoogleTest(&argc, argv);
     if (IsDebuggerPresent())
     {

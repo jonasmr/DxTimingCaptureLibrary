@@ -42,7 +42,6 @@
     <ClInclude Include="PerfettoCategories.h" />
     <ClInclude Include="PerfettoCallbacks.h" />
     <ClInclude Include="PerfettoTraceWriter.h" />
-    <ClInclude Include="TimestampConverterImpl.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(PerfettoPath)\perfetto.vcxproj">

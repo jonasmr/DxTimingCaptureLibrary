@@ -3,29 +3,57 @@
 
 #pragma once
 
+#include <DxEtwLibrary/NoOpCallbacks.h>
+#include <DxEtwLibrary/DxEtwEventHandler.h>
+#include <DxEtwLibrary/GpuPacketEvents.h>
+
+#include "DirectStorageProcessor.h"
+
+namespace DirectX::Etw
+{
+
 class DxEtwProcessor
 {
-    Options m_options;
-    bool m_gpuOnlyEvents; // If true (default new behavior) link GPU events with CPU markers
+    DxEtwLibraryOptions m_options;
+    bool m_mirrorGpuContextEventsToCpu; // When true, also emit GPU-context begin/end events on the CPU thread that emitted them
 
-    std::unique_ptr<ApiObjectCallbacks> m_apiObjectCallbacks;
-    std::unique_ptr<PixCounterCallbacks> m_pixCounterCallbacks;
-    std::unique_ptr<ResidencyEventCallbacks> m_residencyEventCallbacks;
-    std::unique_ptr<PixEventCallbacks> m_pixEventCallbacks;
-    std::unique_ptr<MonitorEventCallbacks> m_monitorEventCallbacks;
-    std::unique_ptr<GpuTimingsCallbacks> m_gpuTimingsCallbacks;
-    std::unique_ptr<DxgkObjectCallbacks> m_dxgkObjectCallbacks;
-    std::unique_ptr<PipelineStateEventCallbacks> m_pipelineStateEventCallbacks;
+    // No-op fallbacks for any null callback slot. Must precede the pointers below,
+    // which bind to them.
+    NoOpApiObjectCallbacks m_noOpApiObjectCallbacks;
+    NoOpPixCounterCallbacks m_noOpPixCounterCallbacks;
+    NoOpResidencyEventCallbacks m_noOpResidencyEventCallbacks;
+    NoOpPixEventCallbacks m_noOpPixEventCallbacks;
+    NoOpMonitorEventCallbacks m_noOpMonitorEventCallbacks;
+    NoOpGpuTimingsCallbacks m_noOpGpuTimingsCallbacks;
+    NoOpDxgkObjectCallbacks m_noOpDxgkObjectCallbacks;
+    NoOpPipelineStateEventCallbacks m_noOpPipelineStateEventCallbacks;
+    NoOpDirectStorageCallbacks m_noOpDirectStorageCallbacks;
+    NoOpGpuEngineActivityCallbacks m_noOpGpuEngineActivityCallbacks;
+    NullDiagnosticsSink m_nullDiagnosticsSink;
+
+    // Each points at the consumer's callback or a no-op above; must outlive the handler.
+    ApiObjectCallbacks* m_apiObjectCallbacks;
+    PixCounterCallbacks* m_pixCounterCallbacks;
+    ResidencyEventCallbacks* m_residencyEventCallbacks;
+    PixEventCallbacks* m_pixEventCallbacks;
+    MonitorEventCallbacks* m_monitorEventCallbacks;
+    GpuTimingsCallbacks* m_gpuTimingsCallbacks;
+    DxgkObjectCallbacks* m_dxgkObjectCallbacks;
+    PipelineStateEventCallbacks* m_pipelineStateEventCallbacks;
+    DirectStorageCallbacks* m_directStorageCallbacks;
+    GpuEngineActivityCallbacks* m_gpuEngineActivityCallbacks;
 
     // Optional (may be null): surfaces runtime failure journal entries.
-    std::unique_ptr<RuntimeFailureCallbacks> m_runtimeFailureCallbacks;
+    RuntimeFailureCallbacks* m_runtimeFailureCallbacks;
 
-    std::unique_ptr<TimestampConverter> m_timestampConverter;
-    DWORD m_targetProcessId;
+    // Never null; passed by reference by the consumer.
+    const TimestampConverter* m_timestampConverter;
+    DWORD m_filterToProcessId;
 
-    // Never null: substituted with a NullDiagnosticsSink when the consumer
-    // supplies none, so every call site can dereference it unconditionally.
-    std::unique_ptr<DiagnosticsSink> m_diagnosticsSink;
+    std::unique_ptr<DirectStorageProcessor> m_directStorageProcessor;
+
+    // Never null: the consumer's sink, or NullDiagnosticsSink if none.
+    DiagnosticsSink* m_diagnosticsSink;
 
     // Cumulative ETW data-loss totals as last reported via ReportTraceStatistics.
     LostEventStatistics m_lostEventStatistics;
@@ -36,64 +64,63 @@ class DxEtwProcessor
     DxgkContexts m_dxgkContexts;
     std::map<uint32_t, PerProcessData> m_perProcessData;
     AdapterTracker m_adapters;
+    GpuPacketTracker m_gpuPacketTracker;
+
+    // OnComplete() may be called more than once; the unfinished packets must only
+    // be reported on the first.
+    bool m_flushedGpuPackets = false;
 
 public:
     DxEtwProcessor(
-        const Options& options,
-        bool gpuOnlyEvents,
-        std::unique_ptr<ApiObjectCallbacks> apiObjectCallbacks,
-        std::unique_ptr<PixCounterCallbacks> pixCounterCallbacks,
-        std::unique_ptr<ResidencyEventCallbacks> residencyEventCallbacks,
-        std::unique_ptr<PixEventCallbacks> pixEventCallbacks,
-        std::unique_ptr<MonitorEventCallbacks> monitorEventCallbacks,
-        std::unique_ptr<GpuTimingsCallbacks> gpuTimingsCallbacks,
-        std::unique_ptr<DxgkObjectCallbacks> dxgkObjectCallbacks,
-        std::unique_ptr<PipelineStateEventCallbacks> pipelineStateEventCallbacks,
-        std::unique_ptr<DiagnosticsSink> diagnosticsSink,
-        std::unique_ptr<RuntimeFailureCallbacks> runtimeFailureCallbacks,
-        std::unique_ptr<TimestampConverter> timestampConverter,
-        DWORD targetProcessId)
-        : m_options(options)
-        , m_gpuOnlyEvents(gpuOnlyEvents)
-        , m_timestampConverter(std::move(timestampConverter))
-        , m_targetProcessId(targetProcessId)
-        , m_diagnosticsSink(diagnosticsSink ? std::move(diagnosticsSink) : std::make_unique<NullDiagnosticsSink>())
+        const DxEtwLibraryOptions& libraryOptions,
+        bool mirrorGpuContextEventsToCpu,
+        ApiObjectCallbacks* apiObjectCallbacks,
+        PixCounterCallbacks* pixCounterCallbacks,
+        ResidencyEventCallbacks* residencyEventCallbacks,
+        PixEventCallbacks* pixEventCallbacks,
+        MonitorEventCallbacks* monitorEventCallbacks,
+        GpuTimingsCallbacks* gpuTimingsCallbacks,
+        DxgkObjectCallbacks* dxgkObjectCallbacks,
+        PipelineStateEventCallbacks* pipelineStateEventCallbacks,
+        DirectStorageCallbacks* directStorageCallbacks,
+        GpuEngineActivityCallbacks* gpuEngineActivityCallbacks,
+        DiagnosticsSink* diagnosticsSink,
+        RuntimeFailureCallbacks* runtimeFailureCallbacks,
+        const TimestampConverter* timestampConverter,
+        DWORD filterToProcessId)
+        : m_options(libraryOptions)
+        , m_mirrorGpuContextEventsToCpu(mirrorGpuContextEventsToCpu)
+        , m_apiObjectCallbacks(apiObjectCallbacks ? apiObjectCallbacks : &m_noOpApiObjectCallbacks)
+        , m_pixCounterCallbacks(pixCounterCallbacks ? pixCounterCallbacks : &m_noOpPixCounterCallbacks)
+        , m_residencyEventCallbacks(residencyEventCallbacks ? residencyEventCallbacks : &m_noOpResidencyEventCallbacks)
+        , m_pixEventCallbacks(pixEventCallbacks ? pixEventCallbacks : &m_noOpPixEventCallbacks)
+        , m_monitorEventCallbacks(monitorEventCallbacks ? monitorEventCallbacks : &m_noOpMonitorEventCallbacks)
+        , m_gpuTimingsCallbacks(gpuTimingsCallbacks ? gpuTimingsCallbacks : &m_noOpGpuTimingsCallbacks)
+        , m_dxgkObjectCallbacks(dxgkObjectCallbacks ? dxgkObjectCallbacks : &m_noOpDxgkObjectCallbacks)
+        , m_pipelineStateEventCallbacks(pipelineStateEventCallbacks ? pipelineStateEventCallbacks : &m_noOpPipelineStateEventCallbacks)
+        , m_directStorageCallbacks(directStorageCallbacks ? directStorageCallbacks : &m_noOpDirectStorageCallbacks)
+        , m_gpuEngineActivityCallbacks(gpuEngineActivityCallbacks ? gpuEngineActivityCallbacks : &m_noOpGpuEngineActivityCallbacks)
+        , m_runtimeFailureCallbacks(runtimeFailureCallbacks)
+        , m_timestampConverter(timestampConverter)
+        , m_filterToProcessId(filterToProcessId)
+        , m_diagnosticsSink(diagnosticsSink ? diagnosticsSink : &m_nullDiagnosticsSink)
         , m_customCounterGroup(0)
     {
-        // All event callbacks and the timestamp converter are required. They are
-        // not independently optional: the library mints object/queue ids in one
-        // callback and feeds them to another (e.g. a command-queue id from
-        // DxgkObjectCallbacks is passed to GpuTimingsCallbacks), so a missing
-        // callback would corrupt another's data rather than simply drop its own.
-        // Reject null here with a clear error instead of crashing later. The
-        // diagnostics sink is the one exception — it is genuinely optional and
-        // defaults to a no-op above.
-        ThrowIf(apiObjectCallbacks == nullptr, E_INVALIDARG, L"apiObjectCallbacks is required and must not be null.");
-        ThrowIf(pixCounterCallbacks == nullptr, E_INVALIDARG, L"pixCounterCallbacks is required and must not be null.");
-        ThrowIf(residencyEventCallbacks == nullptr, E_INVALIDARG, L"residencyEventCallbacks is required and must not be null.");
-        ThrowIf(pixEventCallbacks == nullptr, E_INVALIDARG, L"pixEventCallbacks is required and must not be null.");
-        ThrowIf(monitorEventCallbacks == nullptr, E_INVALIDARG, L"monitorEventCallbacks is required and must not be null.");
-        ThrowIf(gpuTimingsCallbacks == nullptr, E_INVALIDARG, L"gpuTimingsCallbacks is required and must not be null.");
-        ThrowIf(dxgkObjectCallbacks == nullptr, E_INVALIDARG, L"dxgkObjectCallbacks is required and must not be null.");
-        ThrowIf(pipelineStateEventCallbacks == nullptr, E_INVALIDARG, L"pipelineStateEventCallbacks is required and must not be null.");
+        // Only the timestamp converter is required. Create() takes it by reference,
+        // so this only trips if an internal caller passes null.
         ThrowIf(m_timestampConverter == nullptr, E_INVALIDARG, L"timestampConverter is required and must not be null.");
 
-        m_apiObjectCallbacks = std::move(apiObjectCallbacks);
-        m_pixCounterCallbacks = std::move(pixCounterCallbacks);
-        m_residencyEventCallbacks = std::move(residencyEventCallbacks);
-        m_pixEventCallbacks = std::move(pixEventCallbacks);
-        m_monitorEventCallbacks = std::move(monitorEventCallbacks);
-        m_gpuTimingsCallbacks = std::move(gpuTimingsCallbacks);
-        m_dxgkObjectCallbacks = std::move(dxgkObjectCallbacks);
-        m_pipelineStateEventCallbacks = std::move(pipelineStateEventCallbacks);
-
-        // Optional: not validated above because a null is a valid choice.
-        m_runtimeFailureCallbacks = std::move(runtimeFailureCallbacks);
+        m_directStorageProcessor = std::make_unique<DirectStorageProcessor>(m_directStorageCallbacks, m_timestampConverter);
     }
 
-    TimestampConverter* GetTimestampConverter() const
+    const TimestampConverter* GetTimestampConverter() const
     {
-        return m_timestampConverter.get();
+        return m_timestampConverter;
+    }
+
+    DirectStorageProcessor* GetDirectStorageProcessor() const
+    {
+        return m_directStorageProcessor.get();
     }
 
     void OnComplete()
@@ -104,9 +131,23 @@ public:
 
         // Write all gpu memory counters one last time to ensure we have multiple points
         // to plot a line on a graph.
-        m_adapters.ReportLastMemoryCounterValues(m_timestampConverter->GetLastEventTimeStamp(), m_pixCounterCallbacks.get());
+        m_adapters.ReportLastMemoryCounterValues(m_timestampConverter->GetLastEventTimeStamp(), m_pixCounterCallbacks);
 
         ProcessDeferredEntries();
+
+        // Packets still open when the trace stopped never produced a completion;
+        // close them at the last packet event we saw rather than dropping them.
+        if (!m_flushedGpuPackets)
+        {
+            m_flushedGpuPackets = true;
+
+            for (const auto& packet : m_gpuPacketTracker.CollectUnfinished(m_gpuPacketTracker.LastEventQpc()))
+            {
+                ReportGpuPacket(packet);
+            }
+        }
+
+        m_directStorageProcessor->OnComplete();
     }
 
     // Records ETW data-loss totals from a trace's logfile header. The counts are
@@ -143,11 +184,6 @@ public:
         }
     }
 
-    LostEventStatistics GetLostEventStatistics() const
-    {
-        return m_lostEventStatistics;
-    }
-
 private:
     friend class EtwDispatcher<DxEtwProcessor>;
 
@@ -158,7 +194,7 @@ private:
 
     PerProcessData& GetPerProcessData(uint32_t processId)
     {
-        auto perProcessData = m_perProcessData.try_emplace(processId, processId, m_pipelineStateEventCallbacks.get(), m_diagnosticsSink.get());
+        auto perProcessData = m_perProcessData.try_emplace(processId, processId, m_pipelineStateEventCallbacks, m_diagnosticsSink);
         return perProcessData.first->second;
     }
 
@@ -167,7 +203,7 @@ private:
         // Loop all processes and process any pending submissions
         for (auto& processEntry : m_perProcessData)
         {
-            processEntry.second.ProcessPendingSubmissions(m_timestampConverter.get(), &m_adapters, &m_dxgkContexts, m_gpuTimingsCallbacks.get(), m_pixEventCallbacks.get(), ignoreMissingPixEvents, m_diagnosticsSink.get());
+            processEntry.second.ProcessPendingSubmissions(m_timestampConverter, &m_adapters, &m_dxgkContexts, m_gpuTimingsCallbacks, m_pixEventCallbacks, ignoreMissingPixEvents, m_diagnosticsSink);
         }
     }
 
@@ -175,7 +211,7 @@ private:
     {
         for (auto& processEntry : m_perProcessData)
         {
-            processEntry.second.ProcessDeferredEntries(m_apiObjectCallbacks.get());
+            processEntry.second.ProcessDeferredEntries(m_apiObjectCallbacks);
         }
     }
 
@@ -198,8 +234,8 @@ private:
     template <>
     void OnD3D12Event_Info(EVENT_RECORD* record, D3D12JournalEntryArgs args)
     {
-        // Not gated on CaptureGpuMemoryUsage: supplying the callback is itself the opt-in.
-        if (m_runtimeFailureCallbacks == nullptr || record->EventHeader.ProcessId != m_targetProcessId)
+        // Not gated on TrackApiObjects: supplying the callback is itself the opt-in.
+        if (m_runtimeFailureCallbacks == nullptr || record->EventHeader.ProcessId != m_filterToProcessId)
         {
             return;
         }
@@ -216,25 +252,25 @@ private:
     template <>
     void OnD3D12Event_Info(EVENT_RECORD* record, D3D12NamedObjectArgs args)
     {
-        GetPerProcessData(record).UpdateName(m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart), args.object, args.name, m_dxgkObjectCallbacks.get(), m_apiObjectCallbacks.get());
+        GetPerProcessData(record).UpdateName(m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart), args.object, args.name, m_dxgkObjectCallbacks, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Info(EVENT_RECORD* record, D3D12NamedObjectWideArgs args)
     {
-        GetPerProcessData(record).UpdateNameWide(m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart), args.object, args.name, m_dxgkObjectCallbacks.get(), m_apiObjectCallbacks.get());
+        GetPerProcessData(record).UpdateNameWide(m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart), args.object, args.name, m_dxgkObjectCallbacks, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Info(EVENT_RECORD* record, D3D12RenameObjectArgs args)
     {
-        GetPerProcessData(record).UpdateName(m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart), args.object, args.newName, m_dxgkObjectCallbacks.get(), m_apiObjectCallbacks.get());
+        GetPerProcessData(record).UpdateName(m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart), args.object, args.newName, m_dxgkObjectCallbacks, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Info(EVENT_RECORD* record, D3D12RenameObjectWideArgs args)
     {
-        GetPerProcessData(record).UpdateNameWide(m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart), args.object, args.newName, m_dxgkObjectCallbacks.get(), m_apiObjectCallbacks.get());
+        GetPerProcessData(record).UpdateNameWide(m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart), args.object, args.newName, m_dxgkObjectCallbacks, m_apiObjectCallbacks);
     }
 
     template <>
@@ -243,11 +279,11 @@ private:
         auto& perProcessData = GetPerProcessData(record);
         perProcessData.UpdateD3D12Device(args.device, args.kmDevice, args.umDeviceVersion);
 
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
         uint64_t timestamp = m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart);
-        perProcessData.StartNewD3D12Device(args.device, args.featureLevel, args.kmAdapter, args.umAdapter, args.umAdapterVersion, args.kmDevice, args.umDeviceVersion, timestamp, record->EventHeader.ThreadId, m_apiObjectCallbacks.get());
+        perProcessData.StartNewD3D12Device(args.device, args.featureLevel, args.kmAdapter, args.umAdapter, args.umAdapterVersion, args.kmDevice, args.umDeviceVersion, timestamp, record->EventHeader.ThreadId, m_apiObjectCallbacks);
     }
 
     template <>
@@ -256,11 +292,11 @@ private:
         auto& perProcessData = GetPerProcessData(record);
         perProcessData.UpdateD3D12Device(args.device, args.kmDevice, args.umDeviceVersion);
 
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
         uint64_t timestamp = m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart);
-        perProcessData.DestroyD3D12Device(args.device, args.kmDevice, args.umDeviceVersion, timestamp, m_apiObjectCallbacks.get());
+        perProcessData.DestroyD3D12Device(args.device, args.kmDevice, args.umDeviceVersion, timestamp, m_apiObjectCallbacks);
     }
 
     template <>
@@ -269,29 +305,29 @@ private:
         auto& perProcessData = GetPerProcessData(record);
         perProcessData.UpdateD3D12Device(args.device, args.kmDevice, args.umDeviceVersion);
 
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
         uint64_t timestamp = m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart);
-        perProcessData.StartNewD3D12Device(args.device, args.featureLevel, args.kmAdapter, args.umAdapter, args.umAdapterVersion, args.kmDevice, args.umDeviceVersion, timestamp, record->EventHeader.ThreadId, m_apiObjectCallbacks.get());
+        perProcessData.StartNewD3D12Device(args.device, args.featureLevel, args.kmAdapter, args.umAdapter, args.umAdapterVersion, args.kmDevice, args.umDeviceVersion, timestamp, record->EventHeader.ThreadId, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Info(EVENT_RECORD* record, D3D12CommandListArgs args)
     {
-        GetPerProcessData(record).StartNewCommandList(args.commandList, args.device, args.sequenceNumber, true, m_pixEventCallbacks.get(), m_apiObjectCallbacks.get());
+        GetPerProcessData(record).StartNewCommandList(args.commandList, args.device, args.sequenceNumber, true, m_pixEventCallbacks, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Start(EVENT_RECORD* record, D3D12CommandListArgs args)
     {
-        GetPerProcessData(record).StartNewCommandList(args.commandList, args.device, args.sequenceNumber, false, m_pixEventCallbacks.get(), m_apiObjectCallbacks.get());
+        GetPerProcessData(record).StartNewCommandList(args.commandList, args.device, args.sequenceNumber, false, m_pixEventCallbacks, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Stop(EVENT_RECORD* record, D3D12CommandListArgs args)
     {
-        GetPerProcessData(record).DestroyCommandList(args.commandList, args.device, args.sequenceNumber, m_pixEventCallbacks.get(), m_apiObjectCallbacks.get());
+        GetPerProcessData(record).DestroyCommandList(args.commandList, args.device, args.sequenceNumber, m_pixEventCallbacks, m_apiObjectCallbacks);
     }
 
     template <>
@@ -314,7 +350,7 @@ private:
             m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart),
             &m_adapters,
             &m_dxgkContexts,
-            m_dxgkObjectCallbacks.get());
+            m_dxgkObjectCallbacks);
     }
 
     template <>
@@ -324,7 +360,7 @@ private:
             args.commandQueue,
             args.device,
             m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart),
-            m_dxgkObjectCallbacks.get());
+            m_dxgkObjectCallbacks);
     }
 
     template <>
@@ -336,13 +372,13 @@ private:
             m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart),
             &m_adapters,
             &m_dxgkContexts,
-            m_dxgkObjectCallbacks.get());
+            m_dxgkObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Start(EVENT_RECORD* record, D3D12HeapArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
         uint64_t timestamp = m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart);
@@ -362,23 +398,23 @@ private:
             timestamp,
             record->EventHeader.ProcessId,
             record->EventHeader.ThreadId,
-            m_apiObjectCallbacks.get());
+            m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Stop(EVENT_RECORD* record, D3D12HeapArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
         uint64_t timestamp = m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart);
-        GetPerProcessData(record).DestroyD3D12Heap(args.heap, timestamp, m_apiObjectCallbacks.get());
+        GetPerProcessData(record).DestroyD3D12Heap(args.heap, timestamp, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_DCStart(EVENT_RECORD* record, D3D12HeapArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
         uint64_t timestamp = m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart);
@@ -398,13 +434,13 @@ private:
             timestamp,
             record->EventHeader.ProcessId,
             record->EventHeader.ThreadId,
-            m_apiObjectCallbacks.get());
+            m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Start(EVENT_RECORD* record, D3D12ResourceArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
         uint64_t timestamp = m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart);
@@ -437,23 +473,23 @@ private:
             timestamp,
             record->EventHeader.ProcessId,
             record->EventHeader.ThreadId,
-            m_apiObjectCallbacks.get());
+            m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Stop(EVENT_RECORD* record, D3D12ResourceArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
         uint64_t timestamp = m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart);
-        GetPerProcessData(record).DestroyD3D12Resource(args.resource, timestamp, m_apiObjectCallbacks.get());
+        GetPerProcessData(record).DestroyD3D12Resource(args.resource, timestamp, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_DCStart(EVENT_RECORD* record, D3D12ResourceArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
         uint64_t timestamp = m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart);
@@ -486,149 +522,149 @@ private:
             timestamp,
             record->EventHeader.ProcessId,
             record->EventHeader.ThreadId,
-            m_apiObjectCallbacks.get());
+            m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Start(EVENT_RECORD* record, D3D12GraphicsPipelineStateArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
         
-        GetPerProcessData(record).StartNewD3D12GraphicsPipelineState(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks.get());
+        GetPerProcessData(record).StartNewD3D12GraphicsPipelineState(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Stop(EVENT_RECORD* record, D3D12GraphicsPipelineStateArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
-        GetPerProcessData(record).DestroyD3D12GraphicsPipelineState(args, GetTimestamp(record), m_apiObjectCallbacks.get());
+        GetPerProcessData(record).DestroyD3D12GraphicsPipelineState(args, GetTimestamp(record), m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_DCStart(EVENT_RECORD* record, D3D12GraphicsPipelineStateArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
-        GetPerProcessData(record).StartNewD3D12GraphicsPipelineState(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks.get());
+        GetPerProcessData(record).StartNewD3D12GraphicsPipelineState(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Start(EVENT_RECORD* record, D3D12StateObjectArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
-        GetPerProcessData(record).StartNewD3D12StateObject(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks.get());
+        GetPerProcessData(record).StartNewD3D12StateObject(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Stop(EVENT_RECORD* record, D3D12StateObjectArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
-        GetPerProcessData(record).DestroyD3D12StateObject(args, GetTimestamp(record), m_apiObjectCallbacks.get());
+        GetPerProcessData(record).DestroyD3D12StateObject(args, GetTimestamp(record), m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_DCStart(EVENT_RECORD* record, D3D12StateObjectArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
-        GetPerProcessData(record).StartNewD3D12StateObject(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks.get());
+        GetPerProcessData(record).StartNewD3D12StateObject(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Start(EVENT_RECORD* record, D3D12CommandAllocatorArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
-        GetPerProcessData(record).StartNewD3D12CommandAllocator(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks.get());
+        GetPerProcessData(record).StartNewD3D12CommandAllocator(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Stop(EVENT_RECORD* record, D3D12CommandAllocatorArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
-        GetPerProcessData(record).DestroyD3D12CommandAllocator(args, GetTimestamp(record), m_apiObjectCallbacks.get());
+        GetPerProcessData(record).DestroyD3D12CommandAllocator(args, GetTimestamp(record), m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_DCStart(EVENT_RECORD* record, D3D12CommandAllocatorArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
-        GetPerProcessData(record).StartNewD3D12CommandAllocator(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks.get());
+        GetPerProcessData(record).StartNewD3D12CommandAllocator(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Start(EVENT_RECORD* record, D3D12DescriptorHeapArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
-        GetPerProcessData(record).StartNewD3D12DescriptorHeap(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks.get());
+        GetPerProcessData(record).StartNewD3D12DescriptorHeap(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Stop(EVENT_RECORD* record, D3D12DescriptorHeapArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
-        GetPerProcessData(record).DestroyD3D12DescriptorHeap(args, GetTimestamp(record), m_apiObjectCallbacks.get());
+        GetPerProcessData(record).DestroyD3D12DescriptorHeap(args, GetTimestamp(record), m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_DCStart(EVENT_RECORD* record, D3D12DescriptorHeapArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
-        GetPerProcessData(record).StartNewD3D12DescriptorHeap(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks.get());
+        GetPerProcessData(record).StartNewD3D12DescriptorHeap(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks);
     }
 
 
     template <>
     void OnD3D12Event_Start(EVENT_RECORD* record, D3D12MetaCommandArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
-        GetPerProcessData(record).StartNewD3D12MetaCommand(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks.get());
+        GetPerProcessData(record).StartNewD3D12MetaCommand(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Stop(EVENT_RECORD* record, D3D12MetaCommandArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
-        GetPerProcessData(record).DestroyD3D12MetaCommand(args, GetTimestamp(record), m_apiObjectCallbacks.get());
+        GetPerProcessData(record).DestroyD3D12MetaCommand(args, GetTimestamp(record), m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_DCStart(EVENT_RECORD* record, D3D12MetaCommandArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
-        GetPerProcessData(record).StartNewD3D12MetaCommand(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks.get());
+        GetPerProcessData(record).StartNewD3D12MetaCommand(args, GetTimestamp(record), record->EventHeader.ProcessId, record->EventHeader.ThreadId, m_apiObjectCallbacks);
     }
 
     template <>
     void OnD3D12Event_Info(EVENT_RECORD* record, D3D12AllocationInfoArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
         GetPerProcessData(record).AddAllocationInfos(
@@ -639,8 +675,8 @@ private:
             args.numKMTInfos,
             args.kmtInfos,
             m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart),
-            m_residencyEventCallbacks.get(),
-            m_apiObjectCallbacks.get()
+            m_residencyEventCallbacks,
+            m_apiObjectCallbacks
         );
     }
 
@@ -648,8 +684,8 @@ private:
     void OnD3D12Event_Info(EVENT_RECORD* record, D3D12RuntimeMarkerDataArgs args)
     {
         GetPerProcessData(record).UpdateRuntimeMarkerData(
-            m_timestampConverter.get(),
-            m_gpuTimingsCallbacks.get(),
+            m_timestampConverter,
+            m_gpuTimingsCallbacks,
             record->EventHeader.ProcessId,
             args.cpuFrequency,
             args.firstApiSequenceNumber,
@@ -725,7 +761,7 @@ private:
     void OnDxgkEvent_Info(EVENT_RECORD* record, DxgkVSyncDPCArgs args)
     {
         uint64_t cpuTimeStamp = m_timestampConverter->ConvertClockToTimeStamp(args.frameQPCTime);
-        m_adapters.AddVsyncEvent(args.vidPnTargetId, args.dxgAdapter, cpuTimeStamp, m_monitorEventCallbacks.get());
+        m_adapters.AddVsyncEvent(args.vidPnTargetId, args.dxgAdapter, cpuTimeStamp, m_monitorEventCallbacks);
     }
 
     template <>
@@ -738,7 +774,7 @@ private:
             args.gpuFrequency,
             args.gpuClock,
             args.cpuClock,
-            m_diagnosticsSink.get());
+            m_diagnosticsSink);
 
         // Process pending submissions every time we recieve a clock calibration event.
         // This acts like a heart beat while the capture is running.  It is also
@@ -764,7 +800,7 @@ private:
     template <>
     void OnD3D12Event_Start(EVENT_RECORD* record, D3D12CreatePipelineStateObjectArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
         {
             return;
         }
@@ -775,7 +811,7 @@ private:
     template <>
     void OnD3D12Event_Start(EVENT_RECORD* record, D3D12CreateStateObjectArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
         {
             return;
         }
@@ -786,7 +822,7 @@ private:
     template <>
     void OnD3D12Event_Start(EVENT_RECORD* record, D3D12AddToStateObjectArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
         {
             return;
         }
@@ -798,41 +834,40 @@ private:
     template <>
     void OnD3D12Event_Stop(EVENT_RECORD* record, D3D12CreatePipelineStateObjectArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
         {
             return;
         }
 
-        GetPerProcessData(record).StopCompilationEvent(ApiObjectType::PipelineState, record, GetTimestamp(record), m_pipelineStateEventCallbacks.get());
+        GetPerProcessData(record).StopCompilationEvent(ApiObjectType::PipelineState, record, GetTimestamp(record), m_pipelineStateEventCallbacks);
     }
 
     template <>
     void OnD3D12Event_Stop(EVENT_RECORD* record, D3D12CreateStateObjectArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
         {
             return;
         }
 
-        GetPerProcessData(record).StopCompilationEvent(ApiObjectType::StateObject, record, GetTimestamp(record), m_pipelineStateEventCallbacks.get());
+        GetPerProcessData(record).StopCompilationEvent(ApiObjectType::StateObject, record, GetTimestamp(record), m_pipelineStateEventCallbacks);
     }
 
     template <>
     void OnD3D12Event_Stop(EVENT_RECORD* record, D3D12AddToStateObjectArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
         {
             return;
         }
 
-        GetPerProcessData(record).StopCompilationEvent(ApiObjectType::StateObject, record, GetTimestamp(record), m_pipelineStateEventCallbacks.get());
+        GetPerProcessData(record).StopCompilationEvent(ApiObjectType::StateObject, record, GetTimestamp(record), m_pipelineStateEventCallbacks);
     }
 
     template <>
     void OnD3D12Event_Info(EVENT_RECORD* record, D3D12CacheStatisticsArgs args)
     {
-        // CaptureGpuMemoryUsage is really "capture API objects"
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
         {
             return;
         }
@@ -874,6 +909,9 @@ private:
         }
     }
 
+    // These DXGK object handlers are intentionally ungated and unfiltered: both
+    // GPU timing and GPU packet attribution depend on knowing every process's
+    // contexts, hardware queues and devices.
     template <>
     void OnDxgkEvent_Start(EVENT_RECORD* record, DxgkHwQueueArgs args)
     {
@@ -935,13 +973,94 @@ private:
 
         // processId is logged as a uint64, but it's really a uint32, so it is safe to
         // cast it here to access the per process data.
-        GetPerProcessData(static_cast<uint32_t>(args.processId)).DefinePendingCommandQueues(&m_adapters, &m_dxgkContexts, m_dxgkObjectCallbacks.get());
+        GetPerProcessData(static_cast<uint32_t>(args.processId)).DefinePendingCommandQueues(&m_adapters, &m_dxgkContexts, m_dxgkObjectCallbacks);
     }
 
     template <>
     void OnDxgkEvent_Info(EVENT_RECORD* record, DxgkNodeMetadataArgs args)
     {
-        m_adapters.UpdateDxgiAdapterHardwareQueue(args.dxgAdapter, args.nodeOrdinal, args.engineType, args.friendlyName, m_dxgkObjectCallbacks.get());
+        m_adapters.UpdateDxgiAdapterHardwareQueue(args.dxgAdapter, args.nodeOrdinal, args.engineType, args.friendlyName, m_dxgkObjectCallbacks);
+    }
+
+    // Used to track other GPU work (outside our process!) so this intentionally doesn't filter by process ID
+    void ReportGpuPacket(const GpuPacketSpan& packet)
+    {
+        // An unattributed packet still occupied an engine, so it is reported with
+        // the unknown sentinels rather than dropped.
+        uint64_t hardwareCommandQueueId = 0;
+
+        if (packet.Attributed)
+        {
+            if (auto id = m_adapters.GetHardwareCommandQueueId(packet.Adapter, packet.NodeOrdinal))
+            {
+                hardwareCommandQueueId = id->Value;
+            }
+        }
+
+        ThrowFailure(m_gpuEngineActivityCallbacks->OnGpuEngineActivity(
+            packet.Attributed ? packet.ProcessId : 0,
+            hardwareCommandQueueId,
+            packet.EngineAffinity,
+            m_timestampConverter->ConvertClockToTimeStamp(static_cast<INT64>(packet.StartQpc)),
+            m_timestampConverter->ConvertClockToTimeStamp(static_cast<INT64>(packet.EndQpc)),
+            packet.Source == GpuPacketSource::HardwareQueue));
+    }
+
+    void ReportGpuPacket(const std::optional<GpuPacketSpan>& packet)
+    {
+        if (packet.has_value())
+        {
+            ReportGpuPacket(*packet);
+        }
+    }
+
+    static uint64_t GetEventQpc(EVENT_RECORD const* record)
+    {
+        return static_cast<uint64_t>(record->EventHeader.TimeStamp.QuadPart);
+    }
+
+    template <>
+    void OnDxgkEvent_Info(EVENT_RECORD* record, DxgkDmaReleaseToGpuArgs args)
+    {
+        if (!m_options.TrackGpuEngineActivity)
+        {
+            return;
+        }
+
+        OnDmaReleaseToGpu(m_gpuPacketTracker, m_dxgkContexts, GetEventQpc(record), args);
+    }
+
+    template <>
+    void OnDxgkEvent_Info(EVENT_RECORD* record, DxgkDmaCompleteByGpuArgs args)
+    {
+        if (!m_options.TrackGpuEngineActivity)
+        {
+            return;
+        }
+
+        ReportGpuPacket(OnDmaCompleteByGpu(m_gpuPacketTracker, GetEventQpc(record), args));
+    }
+
+    template <>
+    void OnDxgkEvent_Start(EVENT_RECORD* record, DxgkDmaSubmitArgs args)
+    {
+        if (!m_options.TrackGpuEngineActivity)
+        {
+            return;
+        }
+
+        OnDmaSubmit(m_gpuPacketTracker, m_dxgkContexts, GetEventQpc(record), args);
+    }
+
+    template <>
+    void OnDxgkEvent_Info(EVENT_RECORD* record, DxgkDmaIsrCompleteArgs args)
+    {
+        if (!m_options.TrackGpuEngineActivity)
+        {
+            return;
+        }
+
+        ReportGpuPacket(OnDmaIsrComplete(m_gpuPacketTracker, GetEventQpc(record), args));
     }
 
     template <>
@@ -1014,13 +1133,13 @@ private:
             break;
         }
 
-        m_adapters.UpdateDxgkAdapter(args.dxgAdapter, args.adapterLuid, pnpDeviceId, m_dxgkObjectCallbacks.get(), m_pixCounterCallbacks.get());
+        m_adapters.UpdateDxgkAdapter(args.dxgAdapter, args.adapterLuid, pnpDeviceId, m_dxgkObjectCallbacks, m_pixCounterCallbacks);
     }
 
     template <>
     void OnDxgkEvent_Start(EVENT_RECORD* record, DxgkDeviceAllocationArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
         GetPerProcessData(static_cast<uint32_t>(args.processId))
@@ -1030,7 +1149,7 @@ private:
     template <>
     void OnDxgkEvent_DCStart(EVENT_RECORD* record, DxgkDeviceAllocationArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
         GetPerProcessData(static_cast<uint32_t>(args.processId))
@@ -1040,7 +1159,7 @@ private:
     template <>
     void OnDxgkEvent_Stop(EVENT_RECORD* record, DxgkDeviceAllocationArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
         GetPerProcessData(static_cast<uint32_t>(args.processId))
@@ -1051,7 +1170,7 @@ private:
     template <>
     void OnDxgkEvent_Start(EVENT_RECORD* record, DxgkAdapterAllocationArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
         GetPerProcessData(static_cast<uint32_t>(args.hProcessId))
@@ -1064,7 +1183,7 @@ private:
     template <>
     void OnDxgkEvent_DCStart(EVENT_RECORD* record, DxgkAdapterAllocationArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
         GetPerProcessData(static_cast<uint32_t>(args.hProcessId))
@@ -1077,7 +1196,7 @@ private:
     template <>
     void OnDxgkEvent_Stop(EVENT_RECORD* record, DxgkAdapterAllocationArgs args)
     {
-        if (!m_options.CaptureGpuMemoryUsage || record->EventHeader.ProcessId != m_targetProcessId)
+        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
             return;
 
         GetPerProcessData(static_cast<uint32_t>(args.hProcessId))
@@ -1087,7 +1206,7 @@ private:
     template <>
     void OnDxgkEvent_Info(EVENT_RECORD* record, DxgkVidMmProcessBudgetChangeArgs args)
     {
-        if (args.processId != m_targetProcessId)
+        if (args.processId != m_filterToProcessId)
             return;
 
         GetPerProcessData(args.processId).ReportAdapterMemoryBudgetChange(
@@ -1095,13 +1214,13 @@ private:
             args.newBudget,
             args.memorySegmentGroup,
             m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart),
-            m_pixCounterCallbacks.get());
+            m_pixCounterCallbacks);
     }
 
     template <>
     void OnDxgkEvent_Info(EVENT_RECORD* record, DxgkVidMmProcessUsageChangeArgs args)
     {
-        if (args.processId != m_targetProcessId)
+        if (args.processId != m_filterToProcessId)
             return;
 
         GetPerProcessData(args.processId).ReportAdapterMemoryUsageChange(
@@ -1109,13 +1228,13 @@ private:
             args.newUsage,
             args.memorySegmentGroup,
             m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart),
-            m_pixCounterCallbacks.get());
+            m_pixCounterCallbacks);
     }
 
     template <>
     void OnDxgkEvent_Info(EVENT_RECORD* record, DxgkVidMmProcessCommitmentChangeArgs args)
     {
-        if (args.processId != m_targetProcessId)
+        if (args.processId != m_filterToProcessId)
             return;
 
         GetPerProcessData(args.processId).ReportAdapterMemoryCommitmentChange(
@@ -1123,13 +1242,13 @@ private:
             args.newCommitment,
             args.memorySegmentGroup,
             m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart),
-            m_pixCounterCallbacks.get());
+            m_pixCounterCallbacks);
     }
 
     template <>
     void OnDxgkEvent_Info(EVENT_RECORD* record, DxgkVidMmProcessDemotedCommitmentChangeArgs args)
     {
-        if (args.processId != m_targetProcessId)
+        if (args.processId != m_filterToProcessId)
             return;
 
         GetPerProcessData(args.processId).ReportAdapterMemoryDemotedCommitmentChange(
@@ -1137,7 +1256,7 @@ private:
             args.newCommitment,
             args.priorityClass,
             m_timestampConverter->ConvertClockToTimeStamp(record->EventHeader.TimeStamp.QuadPart),
-            m_pixCounterCallbacks.get());
+            m_pixCounterCallbacks);
     }
 
     void ReportPagingOperation(
@@ -1156,7 +1275,7 @@ private:
 
         // Paging events always originate from the System process, but the other DXGK and D3D12 events we need come
         // from their respective processes. Right now we only care about paging events that involve the target process.
-        GetPerProcessData(m_targetProcessId).AddPagingOperation(allocationGlobalHandle, transferDirection, timestamp, m_residencyEventCallbacks.get());
+        GetPerProcessData(m_filterToProcessId).AddPagingOperation(allocationGlobalHandle, transferDirection, timestamp, m_residencyEventCallbacks);
     }
 
     template <>
@@ -1168,10 +1287,10 @@ private:
             args.transferSize,
             args.transferDirection,
             timestamp,
-            m_pixCounterCallbacks.get());
+            m_pixCounterCallbacks);
 
-        // Note: we don't filter by m_targetProcessId here since these events always come from the system process
-        if (!m_options.CaptureGpuMemoryUsage)
+        // Note: we don't filter by m_filterToProcessId here since these events always come from the system process
+        if (!m_options.TrackApiObjects)
             return;
 
         ReportPagingOperation(
@@ -1184,21 +1303,21 @@ private:
     template <>
     void OnDxgkEvent_Info(EVENT_RECORD* record, DxgkVidMmMakeResidentArgs args)
     {
-        // Note: we don't filter by m_targetProcessId here since these events always come from the system process
-        if (!m_options.CaptureGpuMemoryUsage)
+        // Note: we don't filter by m_filterToProcessId here since these events always come from the system process
+        if (!m_options.TrackApiObjects)
             return;
 
-        GetPerProcessData(record).ReportMakeResident(args.vidMmAlloc, args.residencyCount, GetTimestamp(record), m_residencyEventCallbacks.get());
+        GetPerProcessData(record).ReportMakeResident(args.vidMmAlloc, args.residencyCount, GetTimestamp(record), m_residencyEventCallbacks);
     }
 
     template <>
     void OnDxgkEvent_Info(EVENT_RECORD* record, DxgkVidMmEvictArgs args)
     {
-        // Note: we don't filter by m_targetProcessId here since these events always come from the system process
-        if (!m_options.CaptureGpuMemoryUsage)
+        // Note: we don't filter by m_filterToProcessId here since these events always come from the system process
+        if (!m_options.TrackApiObjects)
             return;
 
-        GetPerProcessData(record).ReportEvict(args.vidMmAlloc, args.residencyCount, GetTimestamp(record), m_residencyEventCallbacks.get());
+        GetPerProcessData(record).ReportEvict(args.vidMmAlloc, args.residencyCount, GetTimestamp(record), m_residencyEventCallbacks);
     }
 
     template <>
@@ -1206,25 +1325,25 @@ private:
     {
         m_adapters.UpdateSegment(args.dxgAdapter, args.segmentId, args.memorySegmentGroup);
 
-        if (!m_options.CaptureGpuMemoryUsage)
+        if (!m_options.TrackApiObjects)
             return;
-        GetPerProcessData(m_targetProcessId).TryInsertDeferredDemotedAllocations(m_adapters, args.dxgAdapter, m_residencyEventCallbacks.get());
+        GetPerProcessData(m_filterToProcessId).TryInsertDeferredDemotedAllocations(m_adapters, args.dxgAdapter, m_residencyEventCallbacks);
     }
 
     void HandleAllocationSegmentInfo(uint64_t dxgAdapter, uint64_t allocationGlobalHandle, uint32_t segmentId, uint64_t timestamp)
     {
-        // Note: we don't filter by m_targetProcessId here since these events always come from the system process
-        if (!m_options.CaptureGpuTiming)
+        // Note: we don't filter by m_filterToProcessId here since these events always come from the system process
+        if (!m_options.TrackGpuTiming)
             return;
 
-        auto& targetProcessData = GetPerProcessData(m_targetProcessId);
+        auto& targetProcessData = GetPerProcessData(m_filterToProcessId);
         targetProcessData.HandleAllocationSegmentInfo(
             m_adapters,
             dxgAdapter,
             allocationGlobalHandle,
             segmentId,
             timestamp,
-            m_residencyEventCallbacks.get());
+            m_residencyEventCallbacks);
     }
 
     template <>
@@ -1248,11 +1367,11 @@ private:
     template <>
     void OnDxgkEvent_Info(EVENT_RECORD* record, DxgkMigrateAllocationArgs args)
     {
-        // Note: we don't filter by m_targetProcessId here since these events always come from the system process
-        if (!m_options.CaptureGpuTiming)
+        // Note: we don't filter by m_filterToProcessId here since these events always come from the system process
+        if (!m_options.TrackGpuTiming)
             return;
 
-        auto& targetProcessData = GetPerProcessData(m_targetProcessId);
+        auto& targetProcessData = GetPerProcessData(m_filterToProcessId);
         targetProcessData.StartMigrateAllocation(
             args.allocationGlobalHandle,
             GetTimestamp(record));
@@ -1261,16 +1380,16 @@ private:
     template <>
     void OnDxgkEvent_Stop(EVENT_RECORD* record, DxgkCompleteAllocationMigrationArgs args)
     {
-        // Note: we don't filter by m_targetProcessId here since these events always come from the system process
-        if (!m_options.CaptureGpuTiming)
+        // Note: we don't filter by m_filterToProcessId here since these events always come from the system process
+        if (!m_options.TrackGpuTiming)
             return;
 
-        auto& targetProcessData = GetPerProcessData(m_targetProcessId);
+        auto& targetProcessData = GetPerProcessData(m_filterToProcessId);
         targetProcessData.StopMigrateAllocation(
             args.allocationGlobalHandle,
             args.status,
             GetTimestamp(record),
-            m_residencyEventCallbacks.get());
+            m_residencyEventCallbacks);
     }
 
     void OnEventWritePIXRecordTimingBlock_v1(
@@ -1281,8 +1400,9 @@ private:
     {
         UNREFERENCED_PARAMETER(extraData); // Currently unused by the block decoder
 
-        auto ignoreEventContexts = !m_options.CaptureGpuTiming; // If we are not capturing GPU timings, event Contexts should be ignored
-        auto decodedData = PixEventDecoder::DecodeTimingBlock(ignoreEventContexts, m_gpuOnlyEvents, bufferSize, buffer, [=](uint64_t time) { return m_timestampConverter->ConvertClockToTimeStamp(time); });
+        auto ignoreEventContexts = !m_options.TrackGpuTiming; // If we are not capturing GPU timings, event Contexts should be ignored
+        // DecodeTimingBlock's gpuOnlyEvents is the inverse of our mirror flag.
+        auto decodedData = PixEventDecoder::DecodeTimingBlock(ignoreEventContexts, !m_mirrorGpuContextEventsToCpu, bufferSize, buffer, [=](uint64_t time) { return m_timestampConverter->ConvertClockToTimeStamp(time); });
         if (decodedData.Events.empty())
             return;
 
@@ -1317,10 +1437,10 @@ private:
         // returned event ids to be used for associating gpu events.
         size_t totalEvents = decodedData.Events.size();
         std::vector<uint64_t> eventIds(totalEvents);
-        ThrowFailure(m_pixEventCallbacks->StorePixEvents(blockProcessId, blockThreadId, decodedData.Events.data(), eventIds.data(), (UINT32)totalEvents));
+        ThrowFailure(m_pixEventCallbacks->OnPixEvents(blockProcessId, blockThreadId, decodedData.Events.data(), eventIds.data(), (UINT32)totalEvents));
 
         // If we are not capturing GPU timings, we should not hold onto the PIX events
-        if (!m_options.CaptureGpuTiming)
+        if (!m_options.TrackGpuTiming)
             return;
 
         // Find the process for which these events belong and collect them for
@@ -1333,7 +1453,7 @@ private:
                 continue;
 
             auto& winPixEvent = decodedData.Events[i];
-            WinPixEventEntry entry = { WinPixEventId(eventIds[i]), winPixEvent.Type, winPixEvent.Timestamp };
+            WinPixEventEntry entry = { WinPixEventId(eventIds[i]), winPixEvent.Type, static_cast<uint64_t>(winPixEvent.Timestamp) };
             perProcessData.AddPixEvent(blockThreadId, WinPixEventContextId(decodedData.D3D12Contexts[i]), std::move(entry));
         }
 
@@ -1368,15 +1488,15 @@ private:
         {
             if (m_customCounterGroup == 0)
             {
-                ThrowFailure(m_pixCounterCallbacks->StorePixCounterGroup(0, L"Custom counters", L"", &m_customCounterGroup));
+                ThrowFailure(m_pixCounterCallbacks->OnPixCounterGroup(0, L"Custom counters", L"", &m_customCounterGroup));
             }
 
             constexpr double infinity = std::numeric_limits<double>::infinity();
-            ThrowFailure(m_pixCounterCallbacks->StorePixCounterInfo(m_customCounterGroup, record->EventHeader.ProcessId, name.data(), L"", L"", CounterFlags::IsFractional, -infinity, infinity, &dataPoint.CounterId));
+            ThrowFailure(m_pixCounterCallbacks->OnPixCounterInfo(m_customCounterGroup, record->EventHeader.ProcessId, name.data(), L"", L"", CounterFlags::IsFractional, -infinity, infinity, &dataPoint.CounterId));
             m_customCounterNameToIdMap[name.data()] = PixCounterId(dataPoint.CounterId);
         }
 
-        ThrowFailure(m_pixCounterCallbacks->StorePixCounter(&dataPoint, 1));
+        ThrowFailure(m_pixCounterCallbacks->OnPixCounterData(&dataPoint, 1));
     }
 
     void OnPnpDeviceDescription(
@@ -1384,7 +1504,7 @@ private:
         std::wstring_view deviceId,
         std::wstring_view deviceDescription)
     {
-        m_adapters.UpdateDeviceDescription(deviceId, deviceDescription, m_dxgkObjectCallbacks.get(), m_monitorEventCallbacks.get(), m_pixCounterCallbacks.get());
+        m_adapters.UpdateDeviceDescription(deviceId, deviceDescription, m_dxgkObjectCallbacks, m_monitorEventCallbacks, m_pixCounterCallbacks);
     }
 
     inline uint64_t GetTimestamp(const EVENT_RECORD* record)
@@ -1409,7 +1529,7 @@ private:
         data.UserData = metadata;
         data.Operation = MemoryOperation::Allocate;
 
-        ThrowFailure(m_pixEventCallbacks->StoreMemoryEvent(&data));
+        ThrowFailure(m_pixEventCallbacks->OnMemoryEvent(&data));
     }
 
     void OnEventWritePIXRecordMemoryFreeEvent(
@@ -1429,6 +1549,8 @@ private:
         data.UserData = metadata;
         data.Operation = MemoryOperation::Free;
 
-        ThrowFailure(m_pixEventCallbacks->StoreMemoryEvent(&data));
+        ThrowFailure(m_pixEventCallbacks->OnMemoryEvent(&data));
     }
 };
+
+} // namespace DirectX::Etw

@@ -7,6 +7,7 @@
 
 #include <cstdio>
 #include <fstream>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -57,6 +58,28 @@ struct PerfettoTraceWriter::Impl
     struct Object { int64_t beginNs; std::string typeLabel; std::string name; };
     std::unordered_map<uint64_t, Object> objects;
 
+    // Pipelined GPU work overlaps, but slices on a single Perfetto track stack LIFO
+    // and would bind ends to the wrong begins. So we pack each track's spans into
+    // lanes of non-overlapping spans; they share a merge key and fold back into one
+    // visual track (see LaneTrack).
+    //
+    // trackIndex keeps the lane uuids of two tracks apart even when they end up
+    // with the same label, which two adapters with identically named engines do.
+    struct TrackLanes { uint64_t trackIndex; std::vector<int64_t> laneEndNs; };
+    std::unordered_map<uint64_t, TrackLanes> tracks;
+    uint64_t nextTrackIndex = 0;
+
+    // Past this many concurrent spans on one track we drop the slice rather than
+    // put it on a busy lane, where its end would bind to the wrong begin. Reaching
+    // it means something upstream has already gone wrong - most likely a burst of
+    // packets flushed at the end of the trace, all sharing an end timestamp.
+    static constexpr size_t MaxLanesPerTrack = 64;
+    size_t droppedSlices = 0;
+
+    // Separates an engine's other-process track from its own. Track keys come from
+    // a counter starting at 1, so the top bit is always free.
+    static constexpr uint64_t OtherProcessTrackBit = 1ull << 63;
+
     uint64_t ToPft(int64_t eventNs)
     {
         if (!baseSet)
@@ -97,6 +120,84 @@ struct PerfettoTraceWriter::Impl
             TRACE_EVENT_INSTANT("dxetw", perfetto::DynamicString{ name.c_str() }, track, ts, perfetto::Flow::ProcessScoped(flowId));
         else
             TRACE_EVENT_INSTANT("dxetw", perfetto::DynamicString{ name.c_str() }, track, ts);
+    }
+
+    // Picks a lane on trackKey's track that is free at beginNs, or nullopt once the
+    // track has run out of lanes. label must outlive the returned track, which
+    // points at it rather than copying it.
+    std::optional<perfetto::NamedTrack> LaneTrack(uint64_t trackKey, const std::string& label, int64_t beginNs, int64_t endNs)
+    {
+        auto [it, inserted] = tracks.try_emplace(trackKey);
+        TrackLanes& trackLanes = it->second;
+        if (inserted)
+        {
+            trackLanes.trackIndex = nextTrackIndex++;
+        }
+
+        // Reuse the first lane that's free by beginNs, else start a new one.
+        size_t lane = trackLanes.laneEndNs.size();
+        for (size_t i = 0; i < trackLanes.laneEndNs.size(); ++i)
+        {
+            if (trackLanes.laneEndNs[i] <= beginNs) { lane = i; break; }
+        }
+        bool newLane = lane == trackLanes.laneEndNs.size();
+        if (newLane)
+        {
+            if (lane >= MaxLanesPerTrack)
+            {
+                ++droppedSlices;
+                return std::nullopt;
+            }
+            trackLanes.laneEndNs.push_back(endNs);
+        }
+        else
+        {
+            trackLanes.laneEndNs[lane] = endNs;
+        }
+
+        // One track per lane (lane index -> unique uuid); the shared name and
+        // merge key make Perfetto render them as a single queue track.
+        auto laneTrack = perfetto::NamedTrack(
+            perfetto::DynamicString{ label.c_str() },
+            trackLanes.trackIndex * MaxLanesPerTrack + lane + 1,
+            perfetto::Track())
+            .set_sibling_merge_key(trackKey);
+        if (newLane)
+            perfetto::TrackEvent::SetTrackDescriptor(laneTrack, laneTrack.Serialize());
+
+        return laneTrack;
+    }
+
+    void GpuWorkSlice(uint64_t hwQueueId, const std::string& queueLabel, const std::string& sliceLabel, int64_t beginNs, int64_t endNs, uint64_t flowId)
+    {
+        auto laneTrack = LaneTrack(hwQueueId, queueLabel, beginNs, endNs);
+        if (!laneTrack)
+            return;
+
+        uint64_t begin = ToPft(beginNs);
+        uint64_t end = ToPft(endNs);
+        if (flowId)
+            TRACE_EVENT_BEGIN("dxetw", perfetto::DynamicString{ sliceLabel.c_str() }, *laneTrack, begin, perfetto::Flow::ProcessScoped(flowId));
+        else
+            TRACE_EVENT_BEGIN("dxetw", perfetto::DynamicString{ sliceLabel.c_str() }, *laneTrack, begin);
+        TRACE_EVENT_END("dxetw", *laneTrack, end);
+    }
+
+    // hwQueueId is 0 when the library could not work out which engine ran a packet.
+    std::string QueueLabel(uint64_t hwQueueId)
+    {
+        auto it = hwQueueName.find(hwQueueId);
+        if (it != hwQueueName.end())
+        {
+            return "GPU Queue: " + it->second;
+        }
+
+        if (hwQueueId == 0)
+        {
+            return "GPU Queue: unidentified engine";
+        }
+
+        return "GPU Queue #" + std::to_string(hwQueueId);
     }
 };
 
@@ -152,19 +253,35 @@ void PerfettoTraceWriter::NameHwQueue(uint64_t hwQueueId, const wchar_t* name)
 
 void PerfettoTraceWriter::EmitGpuWork(uint64_t hwQueueId, uint64_t apiMarkerId, int64_t beginNs, int64_t endNs)
 {
-    auto itName = m_impl->hwQueueName.find(hwQueueId);
-    std::string trackLabel = itName != m_impl->hwQueueName.end()
-        ? "GPU Queue: " + itName->second
-        : "GPU Queue #" + std::to_string(hwQueueId);
-
     std::string sliceLabel = "GPU work";
     auto itMarker = m_impl->markerName.find(apiMarkerId);
     if (itMarker != m_impl->markerName.end() && !itMarker->second.empty())
         sliceLabel = itMarker->second;
 
     // Link this GPU work to its API marker with a flow arrow (apiMarkerId is the
-    // same id minted in StoreApiMarker / RegisterApiMarker). 0 means no marker.
-    m_impl->Slice(hwQueueId, trackLabel, sliceLabel, m_impl->ToPft(beginNs), m_impl->ToPft(endNs), apiMarkerId);
+    // same id produced in OnApiMarker / RegisterApiMarker). 0 means no marker.
+    m_impl->GpuWorkSlice(hwQueueId, m_impl->QueueLabel(hwQueueId), sliceLabel, beginNs, endNs, apiMarkerId);
+}
+
+void PerfettoTraceWriter::EmitOtherProcessGpuWork(uint32_t processId, uint64_t hardwareCommandQueueId, int64_t beginNs, int64_t endNs, bool hardwareScheduled)
+{
+    // Named off the queue's own track so the two sort next to each other, and
+    // keyed apart from it so they stay separate tracks.
+    std::string trackLabel = m_impl->QueueLabel(hardwareCommandQueueId) + " (other/unknown processes)";
+    std::string sliceLabel = processId != 0 ? "PID " + std::to_string(processId) : "unattributed";
+
+    auto laneTrack = m_impl->LaneTrack(hardwareCommandQueueId | Impl::OtherProcessTrackBit, trackLabel, beginNs, endNs);
+    if (!laneTrack)
+        return;
+
+    TRACE_EVENT_BEGIN(
+        "dxetw",
+        perfetto::DynamicString{ sliceLabel.c_str() },
+        *laneTrack,
+        m_impl->ToPft(beginNs),
+        "pid", processId,
+        "scheduler", hardwareScheduled ? "hardware" : "legacy");
+    TRACE_EVENT_END("dxetw", *laneTrack, m_impl->ToPft(endNs));
 }
 
 void PerfettoTraceWriter::RegisterApiMarker(uint64_t apiMarkerId, const wchar_t* name, int64_t ts)
@@ -269,4 +386,6 @@ void PerfettoTraceWriter::Finish()
         out.write(data.data(), static_cast<std::streamsize>(data.size()));
     out.close();
     std::printf("Wrote %zu bytes to %s\n", data.size(), m_impl->outputPath.c_str());
+    if (m_impl->droppedSlices)
+        std::printf("Dropped %zu slices that had nowhere non-overlapping to go\n", m_impl->droppedSlices);
 }

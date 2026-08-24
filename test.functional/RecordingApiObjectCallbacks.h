@@ -10,6 +10,8 @@
 
 #include <DxEtwLibrary/EtwCallbacks.h>
 
+using namespace DirectX::Etw;
+
 // A test double for ApiObjectCallbacks that records every callback the library makes,
 // with all of its parameters, into per-kind vectors. Tests inspect those vectors after
 // the session ends.
@@ -323,13 +325,13 @@ public:
         return S_OK;
     }
 
-    HRESULT UpdateApiObjectName(INT64 timestamp, DirectX::Etw::ApiObjectType type, UINT64 objectId, const wchar_t* name) override
+    HRESULT OnApiObjectName(INT64 timestamp, DirectX::Etw::ApiObjectType type, UINT64 objectId, std::wstring_view name) override
     {
-        NameUpdates.push_back({ timestamp, type, objectId, name == nullptr ? std::wstring{} : std::wstring{ name } });
+        NameUpdates.push_back({ timestamp, type, objectId, std::wstring{ name } });
         return S_OK;
     }
 
-    HRESULT UpdateApiObjectSizeAndAddress(INT64 timestamp, DirectX::Etw::ApiObjectType type, UINT64 objectId, UINT64 allocationSize, UINT64 baseAddress) override
+    HRESULT OnApiObjectSizeAndAddress(INT64 timestamp, DirectX::Etw::ApiObjectType type, UINT64 objectId, UINT64 allocationSize, UINT64 baseAddress) override
     {
         SizeAndAddressUpdates.push_back({ timestamp, type, objectId, allocationSize, baseAddress });
         return S_OK;

@@ -10,8 +10,8 @@
 #include <evntrace.h>
 #include <evntcons.h>
 
-#include <D3D12Events.h>
-#include <lddmcoreeventdefs.h>
+#include <external/d3d/D3D12Events.h>
+#include <external/d3d/lddmcoreeventdefs.h>
 #ifndef _M_IX86 // only defined for x86 build
 #include <DxEtwLibrary/PixEtwManifest.h>
 #endif
@@ -23,8 +23,35 @@
 
 #include "DxgkEtwEventStructs.h"
 
+#include <string_view>
+#include <tuple>
+#include <type_traits>
+#include <utility>
+
+#include <external/DirectStorage/dstorage_etw.h>
+
 namespace DirectX::Etw
 {
+    template<typename>
+    struct is_tuple : std::false_type
+    {
+    };
+
+    template<typename... T>
+    struct is_tuple<std::tuple<T...>> : std::true_type
+    {
+    };
+
+    template<typename T, typename = void>
+    struct HasDirectStorageProcessor : std::false_type
+    {
+    };
+
+    template<typename T>
+    struct HasDirectStorageProcessor<T, std::void_t<decltype(std::declval<T&>().GetDirectStorageProcessor())>> : std::true_type
+    {
+    };
+
     //
     // This dispatches ETW events to the appropriate handlers.  The handlers
     // have the same name as the function that emits them, with "On" prefixed.
@@ -61,6 +88,13 @@ namespace DirectX::Etw
                 DispatchWinPixEvent(record);
             else if (providerId == EventTraceConfigGuid)
                 DispatchTraceConfig(record);
+            else if (providerId == DirectStorage::DStorageEtwProvider)
+            {
+                if constexpr (HasDirectStorageProcessor<T>::value)
+                {
+                    DispatchDirectStorageTrace(record);
+                }
+            }
         }
 
     private:
@@ -104,7 +138,7 @@ namespace DirectX::Etw
 // of an ETW session (also called capture state, rundown, or report).
 #define DISPATCH_D3D12(event, template, opcode) case event##_value: Template_##template<template##Args>(record, &T::OnD3D12Event_##opcode); break
 
-        // See %SDXROOT%\onecoreuap\windows\DirectX\dxg\d3d12\DirectX-Direct3D12.man
+        // See DirectX-Direct3D12.man
         void DispatchD3D12Trace(EVENT_RECORD* record)
         {
             switch (record->EventHeader.EventDescriptor.Id)
@@ -168,7 +202,7 @@ namespace DirectX::Etw
 
 #define DISPATCH_DXGK(event, template, opcode) case event##_value: Template_Dxgk##template<Dxgk##template##Args>(record, &T::OnDxgkEvent_##opcode); break
 
-        // See %SDXROOT%\onecoreuap\windows\core\dxkernel\manifests\LDDMCore.man
+        // See LDDMCore.man
         void DispatchDxgkControl(EVENT_RECORD* record)
         {
             switch (record->EventHeader.EventDescriptor.Id)
@@ -187,6 +221,10 @@ namespace DirectX::Etw
                 DISPATCH_DXGK(EventCreateHwQueue,     HwQueue,                   Start);
                 DISPATCH_DXGK(EventDestroyHwQueue,    HwQueue,                   Stop);
                 DISPATCH_DXGK(EventReportHwQueue,     HwQueue,                   DCStart);
+                DISPATCH_DXGK(EventDmaReleaseToGpu,   DmaReleaseToGpu,           Info);
+                DISPATCH_DXGK(EventDmaCompleteByGpu,  DmaCompleteByGpu,          Info);
+                DISPATCH_DXGK(EventDmaSubmit,         DmaSubmit,                 Start);
+                DISPATCH_DXGK(EventDmaIsrComplete,    DmaIsrComplete,            Info);
                 DISPATCH_DXGK(EventCreateAdapterAllocation,  AdapterAllocation,  Start);
                 DISPATCH_DXGK(EventReportAdapterAllocation,  AdapterAllocation,  DCStart);
                 DISPATCH_DXGK(EventDestroyAdapterAllocation, AdapterAllocation,  Stop);
@@ -212,7 +250,7 @@ namespace DirectX::Etw
             }
         }
 
-        // See pix\src\windows\WinPixEventRuntime\runtime\PIXETW.man
+        // See WinPixEventRuntime's PIXETW.man
         void DispatchWinPixEvent(EVENT_RECORD* record)
         {
             // Bring the vendored PIX event-id constants (PixEtw::*_value) into
@@ -893,6 +931,70 @@ namespace DirectX::Etw
                 args);
         }
 
+        template<typename TEventArgs>
+        void Template_DxgkDmaReleaseToGpu(EVENT_RECORD* record, void (T::* target)(EVENT_RECORD*, TEventArgs))
+        {
+            EventData d(record);
+
+            DxgkDmaReleaseToGpuArgs args;
+            args.hHwQueue = d.ReadPointer();
+            args.progressFenceValue = d.ReadUint64();
+            args.pDmaBuffer = d.ReadPointer();
+            args.ntStatus = d.ReadUint32();
+            args.numberOfQueuedPendingFlip = d.ReadUint32();
+
+            (m_obj->*target)(
+                record,
+                args);
+        }
+
+        template<typename TEventArgs>
+        void Template_DxgkDmaCompleteByGpu(EVENT_RECORD* record, void (T::* target)(EVENT_RECORD*, TEventArgs))
+        {
+            EventData d(record);
+
+            DxgkDmaCompleteByGpuArgs args;
+            args.hHwQueue = d.ReadPointer();
+            args.progressFenceValue = d.ReadUint64();
+
+            (m_obj->*target)(
+                record,
+                args);
+        }
+
+        template<typename TEventArgs>
+        void Template_DxgkDmaSubmit(EVENT_RECORD* record, void (T::* target)(EVENT_RECORD*, TEventArgs))
+        {
+            EventData d(record);
+
+            DxgkDmaSubmitArgs args;
+            args.hContext = d.ReadPointer();
+            args.hQueuePacketContext = d.ReadPointer();
+            args.packetType = d.ReadUint32();
+            args.submissionId = d.ReadUint64();
+            // The rest of the payload is fields we don't use.
+
+            (m_obj->*target)(
+                record,
+                args);
+        }
+
+        template<typename TEventArgs>
+        void Template_DxgkDmaIsrComplete(EVENT_RECORD* record, void (T::* target)(EVENT_RECORD*, TEventArgs))
+        {
+            EventData d(record);
+
+            DxgkDmaIsrCompleteArgs args;
+            args.hContext = d.ReadPointer();
+            args.packetType = d.ReadUint32();
+            args.completionId = d.ReadUint64();
+            // The rest of the payload is fields we don't use.
+
+            (m_obj->*target)(
+                record,
+                args);
+        }
+
 #pragma warning(push)
 #pragma warning(disable: 4189)  // local variable is initialized but not referenced
         template<typename TEventArgs>
@@ -1246,6 +1348,132 @@ namespace DirectX::Etw
                 baseAddress,
                 size,
                 metadata);
+        }
+
+        template<typename DATA>
+        struct DirectStorageDataTag
+        {
+            // This works around C++'s lack of partial function specialization
+        };
+
+        template<typename DsProcessor>
+        void DispatchEnqueueRequestByVersion(EVENT_RECORD* record, DsProcessor* ds)
+        {
+            if (record->EventHeader.EventDescriptor.Version == 1)
+            {
+                // DS 1.0: tuple<EnqueueRequestEventData, EndingString>
+                // Explicitly cast to the 3-parameter overload
+                using HandlerType = void (DsProcessor::*)(EVENT_RECORD*, DirectStorage::EnqueueRequestEventData, std::string_view);
+                DispatchDirectStorageNullTerminatedEvent(
+                    DirectStorageDataTag<std::tuple<DirectStorage::EnqueueRequestEventData, DirectStorage::EndingString>>{},
+                    record,
+                    ds,
+                    static_cast<HandlerType>(&DsProcessor::OnTraceEnqueueRequestEvent));
+            }
+            else // DS 1.4 and above
+            {
+                // DS 1.4: tuple<EnqueueRequestEventData, EndingString, EnqueueRequestEventExtendedData>
+                // Explicitly cast to the 4-parameter overload
+                using HandlerType = void (DsProcessor::*)(EVENT_RECORD*, DirectStorage::EnqueueRequestEventData, std::string_view, DirectStorage::EnqueueRequestEventExtendedData);
+                DispatchDirectStorageNullTerminatedEvent(
+                    DirectStorageDataTag<decltype(DirectStorage::EnqueueRequestEvent::Data)>{},
+                    record,
+                    ds,
+                    static_cast<HandlerType>(&DsProcessor::OnTraceEnqueueRequestEvent));
+            }
+        }
+
+#define DISPATCH_DIRECTSTORAGE(event)                                                                            \
+    case static_cast<int>(DirectStorage::event::Desc.Id):                                                        \
+        DispatchDirectStorageEvent(DirectStorageDataTag<decltype(DirectStorage::event::Data)>{}, record, ds, &DsProcessor::OnTrace##event); \
+        break
+
+        // See src\inc\dstorage_etw.h
+        void DispatchDirectStorageTrace(EVENT_RECORD* record)
+        {
+            using DsProcessor = std::remove_pointer_t<decltype(m_obj->GetDirectStorageProcessor())>;
+            DsProcessor* ds = m_obj->GetDirectStorageProcessor();
+
+            switch (record->EventHeader.EventDescriptor.Id)
+            {
+                case static_cast<int>(DirectStorage::EnqueueRequestEvent::Desc.Id):
+                    DispatchEnqueueRequestByVersion(record, ds);
+                    break;
+
+                DISPATCH_DIRECTSTORAGE(OpenFileEvent);
+                DISPATCH_DIRECTSTORAGE(CloseFileEvent);
+                DISPATCH_DIRECTSTORAGE(CreateQueueEvent);
+                DISPATCH_DIRECTSTORAGE(CloseQueueEvent);
+                DISPATCH_DIRECTSTORAGE(RequestStartedEvent);
+                DISPATCH_DIRECTSTORAGE(RequestCompletedEvent);
+                DISPATCH_DIRECTSTORAGE(CreateStatusArrayEvent);
+                DISPATCH_DIRECTSTORAGE(EnqueueStatusEvent);
+                DISPATCH_DIRECTSTORAGE(StatusCompletedEvent);
+                DISPATCH_DIRECTSTORAGE(EnqueueSignalEvent);
+                DISPATCH_DIRECTSTORAGE(SignalCompletedEvent);
+                DISPATCH_DIRECTSTORAGE(SubmitEvent);
+                DISPATCH_DIRECTSTORAGE(StartFileReadEvent);
+                DISPATCH_DIRECTSTORAGE(FileReadCompletedEvent);
+                DISPATCH_DIRECTSTORAGE(StartCpuProcessStageEvent);
+                DISPATCH_DIRECTSTORAGE(CpuProcessStageCompletedEvent);
+                DISPATCH_DIRECTSTORAGE(StartGpuProcessStageEvent);
+                DISPATCH_DIRECTSTORAGE(GpuProcessStageCompletedEvent);
+                DISPATCH_DIRECTSTORAGE(StartGpuCopyStageEvent);
+                DISPATCH_DIRECTSTORAGE(GpuCopyStageCompletedEvent);
+                DISPATCH_DIRECTSTORAGE(ActivitySummaryEvent);
+                DISPATCH_DIRECTSTORAGE(EnqueueSetEvent);
+                DISPATCH_DIRECTSTORAGE(SetEventCompletedEvent);
+            }
+        }
+
+#undef DISPATCH_DIRECTSTORAGE
+
+        template<typename DATA, typename Obj, typename FN>
+        void DispatchDirectStorageEvent(DirectStorageDataTag<DATA>, EVENT_RECORD* record, Obj* obj, FN&& target)
+        {
+            if constexpr (is_tuple<DATA>::value)
+            {
+                constexpr size_t numArgs = std::tuple_size_v<DATA>;
+                DispatchDirectStorageMultipartEvent<DATA>(record, obj, std::forward<FN>(target), std::make_index_sequence<numArgs>{});
+            }
+            else
+            {
+                EventData d(record);
+                (obj->*target)(record, d.Load<DATA>());
+            }
+        }
+
+        template<typename DATA, typename Obj, typename FN>
+        void DispatchDirectStorageNullTerminatedEvent(DirectStorageDataTag<DATA>, EVENT_RECORD* record, Obj* obj, FN&& target)
+        {
+            if constexpr (is_tuple<DATA>::value)
+            {
+                constexpr size_t numArgs = std::tuple_size_v<DATA>;
+                DispatchDirectStorageMultipartNullTerminatedEvent<DATA>(record, obj, std::forward<FN>(target), std::make_index_sequence<numArgs>{});
+            }
+            else
+            {
+                EventData d(record);
+                (obj->*target)(record, d.LoadNullTerminated<DATA>());
+            }
+        }
+
+        template<typename DATA, typename Obj, typename FN, std::size_t... INDICES>
+        void DispatchDirectStorageMultipartEvent(EVENT_RECORD* record, Obj* obj, FN&& target, std::index_sequence<INDICES...>)
+        {
+            EventData d(record);
+            DATA args{d.Load<std::tuple_element_t<INDICES, DATA>>()...};
+
+            std::apply([&](auto&&... unpacked) { (obj->*target)(record, unpacked...); }, std::move(args));
+        }
+
+        template<typename DATA, typename Obj, typename FN, std::size_t... INDICES>
+        void DispatchDirectStorageMultipartNullTerminatedEvent(EVENT_RECORD* record, Obj* obj, FN&& target, std::index_sequence<INDICES...>)
+        {
+            EventData d(record);
+            DATA args{d.LoadNullTerminated<std::tuple_element_t<INDICES, DATA>>()...};
+
+            std::apply([&](auto&&... unpacked) { (obj->*target)(record, unpacked...); }, std::move(args));
         }
 
     };

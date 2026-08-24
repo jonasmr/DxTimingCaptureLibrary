@@ -3,6 +3,9 @@
 
 #pragma once
 
+namespace DirectX::Etw
+{
+
 struct RuntimeMarkerDataEntry
 {
     EMarkerOp MarkerOp;
@@ -211,6 +214,7 @@ struct StartExecutionTime
 {
     uint32_t ThreadId = 0;
     uint64_t CpuSubmitTimestamp = 0;
+    std::wstring CommandListName;
 };
 
 struct CommandQueueInstance
@@ -232,6 +236,7 @@ struct CommandListInstance
     uint64_t FirstTopOfPipeGpuTimestampNs = 0;
     std::vector<GpuEvent> PixGpuEvents;
     WinPixEventContextId PixEventContextId;
+    std::wstring Name;
     PixMarkerTracker ExpectedWinPixEvents;
     std::vector<WinPixEventEntry> WinPixEvents;
     std::queue<StartExecutionTime> ExecutionStarts;
@@ -426,7 +431,7 @@ struct CommandListInstance
 
         for (auto& batch : batches)
         {
-            ThrowFailure(pixEventCallbacks->StorePixEvents(processId, batch.ThreadId, &events[batch.FirstIndex], &eventIds[batch.FirstIndex], (UINT32)batch.Total));
+            ThrowFailure(pixEventCallbacks->OnPixEvents(processId, batch.ThreadId, &events[batch.FirstIndex], &eventIds[batch.FirstIndex], (UINT32)batch.Total));
 
             for (size_t i = batch.FirstIndex; i < batch.FirstIndex + batch.Total; i++)
             {
@@ -509,6 +514,10 @@ struct CommandBufferSubmissionEntry
     std::vector<GpuEvent> CompletedCommandListsPixGpuEvents;
     std::vector<uint64_t> CompletedCommandListWinPixEventIds;
     std::vector<CommandListInstance> CompletedCommandListsToDelete;
+
+    // Friendly names (ID3D12Object::SetName) for command lists in this submission, keyed by the same
+    // 32-bit command list id that is reported to StoreGpuWork2 as commandListIndexInExecution.
+    std::vector<std::pair<uint32_t, std::wstring>> CompletedCommandListNames;
 
     CommandQueueInstanceId CommandQueueId;
 
@@ -680,8 +689,8 @@ struct CommandBufferSubmissionEntry
         DxgkContexts* dxgContexts,
         WinPixEventStore* eventStore,
         uint32_t processId,
-        std::map<DirectX::Etw::CommandListInstanceId, CommandListInstance>* commandLists,
-        std::map<DirectX::Etw::CommandQueueInstanceId, CommandQueueInstance>* commandQueues,
+        std::map<CommandListInstanceId, CommandListInstance>* commandLists,
+        std::map<CommandQueueInstanceId, CommandQueueInstance>* commandQueues,
         std::map<uint64_t, std::vector<std::pair<bool, CommandListInstanceId>>>* commandListToIds,
         GpuTimingsCallbacks* gpuTimingsCallbacks,
         PixEventCallbacks* pixEventCallbacks,
@@ -966,6 +975,13 @@ struct CommandBufferSubmissionEntry
                 {
                     CompletedCommandListsGpuWorkEvents.insert(CompletedCommandListsGpuWorkEvents.end(), commandList.GpuWorkEvents.begin(), commandList.GpuWorkEvents.end());
                     commandList.GpuWorkEvents.clear();
+
+                    std::wstring capturedCommandListName = commandList.ExecutionStarts.front().CommandListName;
+                    if (!capturedCommandListName.empty())
+                    {
+                        uint32_t commandListId = static_cast<uint32_t>(std::get<1>(commandList.Id));
+                        CompletedCommandListNames.push_back(std::make_pair(commandListId, std::move(capturedCommandListName)));
+                    }
                 }
 
                 // A command list can be reused and executed again. We ensure a clean state
@@ -1002,28 +1018,32 @@ struct CommandBufferSubmissionEntry
             // Stable sort is preferred to ensure that any events with identical timestamps
             // maintain their original order.  This is important when Begin and End events.
             std::stable_sort(CompletedCommandListsPixGpuEvents.begin(), CompletedCommandListsPixGpuEvents.end(), [](const auto& lhs, const auto& rhs) { return lhs.Timestamp < rhs.Timestamp; });
-            ThrowFailure(pixEventCallbacks->StorePixGpuEvents(CompletedCommandListsPixGpuEvents.data(), (UINT32)CompletedCommandListsPixGpuEvents.size()));
+            ThrowFailure(pixEventCallbacks->OnPixGpuEvents(CompletedCommandListsPixGpuEvents.data(), (UINT32)CompletedCommandListsPixGpuEvents.size()));
         }
 
         if (!CompletedCommandListsGpuWorkEvents.empty())
         {
             uint64_t executionId = 0;
-            ThrowFailure(gpuTimingsCallbacks->DefineGpuExecution(processId, startExecutionTime.ThreadId, commandQueue.ApiCommandQueueId.Value, (INT64)startExecutionTime.CpuSubmitTimestamp, 0, &executionId));
+            ThrowFailure(gpuTimingsCallbacks->OnGpuExecutionBegin(processId, startExecutionTime.ThreadId, commandQueue.ApiCommandQueueId.Value, (INT64)startExecutionTime.CpuSubmitTimestamp, 0, &executionId));
 
             std::stable_sort(CompletedCommandListsGpuWorkEvents.begin(), CompletedCommandListsGpuWorkEvents.end(), [](const auto& lhs, const auto& rhs) { return lhs.BeginTimestamp < rhs.BeginTimestamp; });
             for (auto const& gpuEvent : CompletedCommandListsGpuWorkEvents)
             {
-                ThrowFailure(gpuTimingsCallbacks->StoreGpuWork2(
+                ThrowFailure(gpuTimingsCallbacks->OnGpuWork(
                     gpuEvent.HardwareCommandQueueId,
                     executionId,
                     gpuEvent.CommandListId,
                     gpuEvent.ApiMarkerId,
                     gpuEvent.BeginTimestamp,
-                    gpuEvent.EndTimestamp,
-                    nullptr));
+                    gpuEvent.EndTimestamp));
             }
 
-            ThrowFailure(gpuTimingsCallbacks->CompleteGpuExecution(executionId));
+            for (auto const& [commandListId, commandListName] : CompletedCommandListNames)
+            {
+                ThrowFailure(gpuTimingsCallbacks->OnCommandListName(executionId, commandListId, commandListName.c_str()));
+            }
+
+            ThrowFailure(gpuTimingsCallbacks->OnGpuExecutionComplete(executionId));
         }
 
         // Finalize any ids for deleted command lists to free up memory managed by the database.
@@ -1145,7 +1165,7 @@ class PerProcessData
                 && (insertWithoutObjectId || entry->second.ObjectId.has_value()))
             {
                 ThrowFailure(
-                    pipelineStateEventCallbacks->AddPsoCompilation(
+                    pipelineStateEventCallbacks->OnPsoCompilation(
                         processId,
                         this->ThreadId,
                         entry->second.ObjectId.value(),
@@ -1215,6 +1235,10 @@ class PerProcessData
 
     std::map<uint64_t, std::vector<std::pair<bool /*flag to indicate deleted*/, CommandListInstanceId>>> m_commandListToIds;
     std::map<CommandListInstanceId, CommandListInstance> m_commandListInstances;
+
+    // Friendly names (ID3D12Object::SetName) keyed by D3D12 command list object pointer. Tracked per object so
+    // that names persist across command list resets, which produce new CommandListInstance entries.
+    std::map<uint64_t, std::wstring> m_commandListNames;
 
     std::vector<CommandQueueInstanceId> m_pendingCommandQueueInstances;
 
@@ -1303,7 +1327,7 @@ public:
                         auto& residencyData = residencyIt->second;
                         residencyData.ObjectId = objectInfo->Id;
                         residencyData.ObjectType = objectInfo->Type;
-                        ThrowFailure(residencyCallbacks->StoreResidenceOperation(&residencyData));
+                        ThrowFailure(residencyCallbacks->OnResidencyOperation(&residencyData));
 
                         m_deferredResidencyOperation.erase(thunkAllocation);
                     }
@@ -1412,13 +1436,34 @@ public:
                 return;
             }
 
-            ThrowFailure(dxgkObjectCallbacks->UpdateApiCommandQueue(instance.ApiCommandQueueId.Value, instance.Name.c_str()));
+            ThrowFailure(dxgkObjectCallbacks->OnApiCommandQueueName(instance.ApiCommandQueueId.Value, instance.Name.c_str()));
+            return;
+        }
+
+        auto commandListIdsIt = m_commandListToIds.find(d3d12Object);
+        if (commandListIdsIt != m_commandListToIds.end())
+        {
+            // Track the name per command list object so it survives resets, and apply it to any currently
+            // tracked instances. The name is captured when an execution begins and written to storage when gpu work is completed.
+            m_commandListNames[d3d12Object] = name;
+            for (auto const& [deleted, commandListInstanceId] : commandListIdsIt->second)
+            {
+                auto instanceIt = m_commandListInstances.find(commandListInstanceId);
+                if (instanceIt != m_commandListInstances.end())
+                {
+                    instanceIt->second.Name = name;
+                }
+            }
+            return;
         }
 
         m_apiObjectProcessor.UpdateName(d3d12Object, name, timestamp, apiObjectCallbacks);
     }
 
-    void MarkCommandListForDeletion(uint64_t commandList, PixEventCallbacks* pixEventCallbacks, ApiObjectCallbacks* apiObjectCallbacks)
+    void MarkCommandListInstancesForDeletion(
+        uint64_t commandList,
+        PixEventCallbacks* pixEventCallbacks,
+        ApiObjectCallbacks* apiObjectCallbacks)
     {
         // Grab and mark all command list instances associated with D3D12 commandList as deleted.
         // Any id that is already marked as delete is skipped.
@@ -1488,7 +1533,10 @@ public:
             // Reset being called on a command list indicates that the command list
             // will be rebuilt and any instances previously built should be marked
             // as deleted as they can no longer be executed once completed.
-            MarkCommandListForDeletion(commandList, pixEventCallbacks, apiObjectCallbacks);
+            MarkCommandListInstancesForDeletion(
+                commandList,
+                pixEventCallbacks,
+                apiObjectCallbacks);
         }
 
         auto commandListInstanceId = CommandListInstanceId{ device, sequenceNumber };
@@ -1496,12 +1544,32 @@ public:
         commandListInstance.Id = commandListInstanceId;
         commandListInstance.PixEventContextId = pixEventContextId;
 
+        // Carry forward any name previously assigned to this command list object so reused command lists keep
+        // their friendly name across resets.
+        auto nameIt = m_commandListNames.find(commandList);
+        if (nameIt != m_commandListNames.end())
+        {
+            commandListInstance.Name = nameIt->second;
+        }
+
         m_commandListToIds[commandList].push_back(std::make_pair(false, commandListInstanceId));
     }
 
     void DestroyCommandList(uint64_t commandList, uint64_t device, uint64_t sequenceNumber, PixEventCallbacks* pixEventCallbacks, ApiObjectCallbacks* apiObjectCallbacks)
     {
-        MarkCommandListForDeletion(commandList, pixEventCallbacks, apiObjectCallbacks);
+        // Mark all command list instances associated with D3D12 commandList as deleted.
+        MarkCommandListInstancesForDeletion(
+            commandList,
+            pixEventCallbacks,
+            apiObjectCallbacks);
+
+        // Remove all tracking data if there are no more associated command list instances.
+        auto commandListIdsIt = m_commandListToIds.find(commandList);
+        if (commandListIdsIt != m_commandListToIds.end() && commandListIdsIt->second.empty())
+        {
+            m_commandListToIds.erase(commandList);
+            m_commandListNames.erase(commandList);
+        }
     }
 
     void StartExecuteCommandList(EVENT_RECORD* record, uint64_t timeStamp, uint64_t commandQueue, uint64_t commandList)
@@ -1537,7 +1605,7 @@ public:
         if (commandListInstance.RuntimeMarkers.empty())
             return;
 
-        commandListInstance.ExecutionStarts.push({ perThreadData.ThreadId, timeStamp });
+        commandListInstance.ExecutionStarts.push({ perThreadData.ThreadId, timeStamp, commandListInstance.Name });
     }
 
     void StopExecuteCommandList(EVENT_RECORD* record)
@@ -1579,7 +1647,7 @@ public:
                 // never be considered in-flight.
                 if (!commandListInstance.RuntimeMarkers.empty())
                 {
-                    commandListInstance.ExecutionStarts.push({ perThreadData.ThreadId, timeStamp });
+                    commandListInstance.ExecutionStarts.push({ perThreadData.ThreadId, timeStamp, commandListInstance.Name });
                 }
             }
         }
@@ -1639,13 +1707,13 @@ public:
             {
                 auto& commandQueueInstance = m_commandQueueInstances[*it];
                 uint64_t apiQueueId = 0;
-                ThrowFailure(dxgkObjectCallbacks->DefineApiCommandQueue(m_processId, adapterId->Value, CommandListTypeToString(commandQueueInstance.CommandListType), commandQueueInstance.CreationTimestamp, &apiQueueId));
+                ThrowFailure(dxgkObjectCallbacks->OnApiCommandQueue(m_processId, adapterId->Value, CommandListTypeToString(commandQueueInstance.CommandListType), commandQueueInstance.CreationTimestamp, &apiQueueId));
                 commandQueueInstance.ApiCommandQueueId = ApiCommandQueueId(apiQueueId);
 
                 // If this command queue was is named ensure that the database gets it now.
                 if (!commandQueueInstance.Name.empty())
                 {
-                    ThrowFailure(dxgkObjectCallbacks->UpdateApiCommandQueue(commandQueueInstance.ApiCommandQueueId.Value, commandQueueInstance.Name.c_str()));
+                    ThrowFailure(dxgkObjectCallbacks->OnApiCommandQueueName(commandQueueInstance.ApiCommandQueueId.Value, commandQueueInstance.Name.c_str()));
                 }
 
                 it = m_pendingCommandQueueInstances.erase(it);
@@ -1688,7 +1756,7 @@ public:
             if (adapterId.has_value())
             {
                 uint64_t id = 0;
-                ThrowFailure(dxgkObjectCallbacks->DefineApiCommandQueue(m_processId, adapterId->Value, CommandListTypeToString(commandQueueInstance.CommandListType), commandQueueInstance.CreationTimestamp, &id));
+                ThrowFailure(dxgkObjectCallbacks->OnApiCommandQueue(m_processId, adapterId->Value, CommandListTypeToString(commandQueueInstance.CommandListType), commandQueueInstance.CreationTimestamp, &id));
                 commandQueueInstance.ApiCommandQueueId = ApiCommandQueueId(id);
             }
             else
@@ -1711,7 +1779,7 @@ public:
         {
             auto commandQueueInstanceId = it->second;
             auto& commandQueueInstance = m_commandQueueInstances[commandQueueInstanceId];
-            ThrowFailure(dxgkObjectCallbacks->EndApiCommandQueue(commandQueueInstance.ApiCommandQueueId.Value, destructionTimeNs));
+            ThrowFailure(dxgkObjectCallbacks->OnApiCommandQueueEnd(commandQueueInstance.ApiCommandQueueId.Value, destructionTimeNs));
 
             commandQueueInstance.IsDestroyed = true;
         }
@@ -1995,7 +2063,7 @@ public:
             // Create api markers for all marker operations except BeginSubmission and EndSubmission.
             if (m.MarkerOp != e_MOp_BeginSubmission && m.MarkerOp != e_MOp_EndSubmission)
             {
-                ThrowFailure(gpuTimingsCallbacks->StoreApiMarker(processId, m.ThreadId, ToString(m.MarkerOp), m.TimestampNs, &apiMarkerId));
+                ThrowFailure(gpuTimingsCallbacks->OnApiMarker(processId, m.ThreadId, ToString(m.MarkerOp), m.TimestampNs, &apiMarkerId));
             }
             commandListInstance.RuntimeMarkers.back().ApiMarkerEventId = ApiMarkerEventId(apiMarkerId);
 
@@ -2410,7 +2478,7 @@ public:
             const auto& objectInfo = objectInfos[0];
             data.ObjectId = objectInfo.Id;
             data.ObjectType = objectInfo.Type;
-            ThrowFailure(residencyCallbacks->StoreResidenceOperation(&data));
+            ThrowFailure(residencyCallbacks->OnResidencyOperation(&data));
         }
     }
 
@@ -2430,7 +2498,7 @@ public:
                 ? ResidencyOperationType::PageIn
                 : ResidencyOperationType::PageOut;
             data.Timestamp = timestamp;
-            ThrowFailure(residencyCallbacks->StoreResidenceOperation(&data));
+            ThrowFailure(residencyCallbacks->OnResidencyOperation(&data));
         }
     }
 
@@ -2494,7 +2562,7 @@ public:
                         demotedAllocations.push_back(data);
                     }
 
-                    ThrowFailure(residencyCallbacks->StoreDemotedAllocationData(demotedAllocations.data(), (UINT32)demotedAllocations.size()));
+                    ThrowFailure(residencyCallbacks->OnDemotedAllocations(demotedAllocations.data(), (UINT32)demotedAllocations.size()));
                 }
             }
 
@@ -2574,7 +2642,7 @@ public:
                 allocationMigrations.push_back(data);
             }
 
-            ThrowFailure(residencyCallbacks->StoreAllocationMigrationData(allocationMigrations.data(), (UINT32)allocationMigrations.size()));
+            ThrowFailure(residencyCallbacks->OnAllocationMigrations(allocationMigrations.data(), (UINT32)allocationMigrations.size()));
 
             m_migrateAllocationEntries.erase(allocationGlobalHandle);
         }
@@ -2617,3 +2685,5 @@ private:
         }
     }
 };
+
+} // namespace DirectX::Etw

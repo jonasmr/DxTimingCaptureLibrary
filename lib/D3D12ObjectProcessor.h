@@ -5,11 +5,15 @@
 
 #include <optional>
 #include <unordered_map>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
 #include "AllocationTracker.h"
 #include <DxEtwLibrary/EtwCallbacks.h>
+
+namespace DirectX::Etw
+{
 
 // Internal: how a resource obtained its backing memory, and the placement data
 // carried for it across the ETW events that describe its creation. This is the
@@ -54,20 +58,23 @@ private:
     std::unordered_map<uint64_t, UINT64> m_apiObjectTypeAddressToIds[(size_t)ApiObjectType::Max];
     std::unordered_map<uint64_t, AllocationTracker::Handle> m_objectAddressToAllocationInfoHandle;
 
-    // Data carried from a heap to its conjoined (committed) resource.
-    struct ConjoinedHeapData
-    {
-        UINT64 GpuVirtualBaseAddress;
-        UINT64 GpuVirtualSize;
-        UINT64 Alignment;
-        D3D12_HEAP_PROPERTIES Properties;
-        D3D12_HEAP_FLAGS Flags;
-    };
-
-    // map conjoined resource to heapData
-    std::unordered_map<uint64_t, ConjoinedHeapData> m_heapDataByConjoinedResource;
-    // and heap address to conjoined resource
+    // Map heap address to conjoined resource
     std::unordered_map<uint64_t, uint64_t> m_heapAddressToConjoinedResource;
+
+    // The runtime creates implicit resources that we don't want to track as part of the user's API Objects.
+    // Those implicit resources may also have a corresponding heap with a conjoined resource matching the implicit resource.
+    // In that case we can unambiguously determine to drop the heap (not store it).
+    // An implicit resource maps to exactly one heap, so each entry is removed once its heap is stored
+    // (see InsertD3D12Heap) to keep this set from growing for the lifetime of the capture.
+    std::unordered_set<uint64_t> m_implicitResourceAddresses;
+
+    // For any given heap we may not be able to determine whether it's implied (created as part of a
+    // committed resource) or real (created independently and used for placed or reserved resources).
+    // While a heap is ambiguous its full entry lives in m_deferredEntriesByObjectAddress; this map is a
+    // reverse index from the heap's conjoined resource to that heap's object address, so that an arriving
+    // resource (which only knows its own address) can find and classify the deferred heap.
+    // See comment in InsertD3D12Heap for more details.
+    std::unordered_map<uint64_t, uint64_t> m_deferredAmbiguousHeapAddressByResource;
 
     // stores the placed resources object addresses that are waiting for a heap (used to lookup into m_deferredResourceEntryByObjectAddress)
     std::unordered_map<uint64_t, std::vector<uint64_t>> m_deferredPlacedResourcesByHeapObjectAddress;
@@ -276,7 +283,10 @@ private:
     // Fetches the first virtual address from the allocation info at the given index (in m_allocationInfos)
     uint64_t GetGpuVirtualAddressFromAllocationInfoHandle(AllocationTracker::Handle handle);
 
-    void InsertD3D12Heap(const HeapEntry& entry, ApiObjectCallbacks* callbacks);
+    void InsertD3D12Heap(const HeapEntry& entry, ApiObjectCallbacks* callbacks, bool finalizing = false);
+    void MaterializeDeferredAmbiguousHeapIfPresent(uint64_t heapObjectAddress, ApiObjectCallbacks* callbacks);
+    void MaterializeDeferredAmbiguousHeapByResource(uint64_t resourceObjectAddress, ApiObjectCallbacks* callbacks);
+    void DropDeferredAmbiguousHeapByResource(uint64_t resourceObjectAddress);
     void InsertD3D12Resource(const ResourceEntry& entry, ApiObjectCallbacks* callbacks);
     void InsertD3D12PipelineState(const PipelineStateEntry& entry, ApiObjectCallbacks* callbacks);
     void InsertD3D12StateObject(const StateObjectEntry& entry, ApiObjectCallbacks* callbacks);
@@ -292,3 +302,5 @@ private:
         uint64_t baseAddress,
         ApiObjectCallbacks* callbacks) const;
 };
+
+} // namespace DirectX::Etw

@@ -3,6 +3,9 @@
 
 #pragma once
 
+namespace DirectX::Etw
+{
+
 //
 // A strongly-typed identifier template that wraps an integral value.
 // Uses a Tag type to create distinct types for different identifier purposes.
@@ -29,17 +32,22 @@ struct Identifier
     bool operator>=(Identifier other) const { return Value >= other.Value; }
 };
 
+} // namespace DirectX::Etw
+
 namespace std
 {
     template<typename T, typename Tag>
-    struct hash<Identifier<T, Tag>>
+    struct hash<DirectX::Etw::Identifier<T, Tag>>
     {
-        size_t operator()(Identifier<T, Tag> const& id) const
+        size_t operator()(DirectX::Etw::Identifier<T, Tag> const& id) const
         {
             return std::hash<T>{}(id.Value);
         }
     };
 }
+
+namespace DirectX::Etw
+{
 
 //
 // The PixCounterId is the unique ID for counters reported via the PIXReportCounter
@@ -79,3 +87,5 @@ using MonitorId = Identifier<uint64_t, struct MonitorId_Tag>;
 
 // Monitors are unique by their vidPnTargetId and dxgkAdapterId, since target IDs are per-adapter
 using MonitorIdentifier = std::pair<uint32_t, uint64_t>;
+
+} // namespace DirectX::Etw

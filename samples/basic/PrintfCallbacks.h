@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include <DxEtwLibrary/TicksToNanoseconds.h>
-
 #define PRINT_MONITOR_CALLBACKS 0
 #define PRINT_API_OBJECT_CALLBACKS 1
 #define PRINT_DXGK_OBJECT_CALLBACKS 0
@@ -12,35 +10,6 @@
 #define PRINT_RESIDENCY_CALLBACKS 1
 
 using namespace DirectX::Etw;
-
-class TimestampConverterImpl : public TimestampConverter
-{
-    LARGE_INTEGER m_frequency;
-
-public:
-    TimestampConverterImpl()
-    {
-        QueryPerformanceFrequency(&m_frequency);
-    }
-
-    virtual LONGLONG GetLastEventTimeStamp() const override
-    {
-        return 0;
-    }
-
-    virtual LONGLONG ConvertClockToTimeStamp(LONGLONG count) const override
-    {
-        // The session uses QPC timestamps, so `count` is a QPC tick count. The library
-        // forwards this value to the callbacks as a nanosecond timestamp, so convert
-        // ticks -> ns here.
-        return static_cast<LONGLONG>(TicksToNanoseconds(static_cast<uint64_t>(count), static_cast<uint64_t>(m_frequency.QuadPart)));
-    }
-
-    virtual INT64 GetHighPerformanceFrequency() const override
-    {
-        return m_frequency.QuadPart;
-    }
-};
 
 class MonitorCallbacksPrintf : public MonitorEventCallbacks
 {
@@ -61,20 +30,20 @@ class MonitorCallbacksPrintf : public MonitorEventCallbacks
     }
 
 public:
-    HRESULT AddMonitor(wchar_t const* monitorDescription, wchar_t const* adapterDescription, UINT64* monitorId) override
+    HRESULT OnMonitor(wchar_t const* monitorDescription, wchar_t const* adapterDescription, UINT64* monitorId) override
     {
         *monitorId = ++m_nextMonitorId;
         MaybePrint(L"Monitor found: %ls on %ls\n", monitorDescription, adapterDescription);
         return S_OK;
     }
 
-    HRESULT UpdateMonitor(UINT64 monitorId, wchar_t const* monitorDescription, wchar_t const* adapterDescription) override
+    HRESULT OnMonitorUpdate(UINT64 monitorId, wchar_t const* monitorDescription, wchar_t const* adapterDescription) override
     {
         MaybePrint(L"Monitor updated: %ls on %ls\n", monitorDescription, adapterDescription);
         return S_OK;
     }
 
-    HRESULT StoreVSync(UINT64 monitorId, INT64 timestamp) override
+    HRESULT OnVSync(UINT64 monitorId, INT64 timestamp) override
     {
         MaybePrint(L"VSYNC: %llu, timestamp %lld\n", monitorId, timestamp);
         return S_OK;
@@ -251,13 +220,13 @@ public:
         return S_OK;
     }
 
-    HRESULT UpdateApiObjectName(INT64 timestamp, ApiObjectType type, UINT64 objectId, const wchar_t* name) override
+    HRESULT OnApiObjectName(INT64 timestamp, ApiObjectType type, UINT64 objectId, std::wstring_view name) override
     {
-        MaybePrint(L"%lld Object name updated: Type %d, Id %llu, Name %ls\n", timestamp, (int)type, objectId, name);
+        MaybePrint(L"%lld Object name updated: Type %d, Id %llu, Name %ls\n", timestamp, (int)type, objectId, std::wstring(name).c_str());
         return S_OK;
     }
 
-    HRESULT UpdateApiObjectSizeAndAddress(INT64 timestamp, ApiObjectType type, UINT64 objectId, UINT64 allocationSize, UINT64 baseAddress) override
+    HRESULT OnApiObjectSizeAndAddress(INT64 timestamp, ApiObjectType type, UINT64 objectId, UINT64 allocationSize, UINT64 baseAddress) override
     {
         MaybePrint(L"%lld Object size and address updated: Type %d, Id %llu, AllocationSize %llu, BaseAddress %llu\n", timestamp, (int)type, objectId, allocationSize, baseAddress);
         return S_OK;
@@ -285,33 +254,33 @@ class DxgkObjectCallbacksPrintf : public DxgkObjectCallbacks
     }
 
 public:
-    HRESULT DefineHardwareAdapter(UINT64* adapterId) override
+    HRESULT OnHardwareAdapter(UINT64* adapterId) override
     {
         *adapterId = ++m_nextAdapterId;
         MaybePrint(L"Hardware Adapter defined: Id %llu\n", *adapterId);
         return S_OK;
     }
 
-    HRESULT UpdateHardwareAdapter(UINT64 adapterId, PCWSTR name) override
+    HRESULT OnHardwareAdapterName(UINT64 adapterId, PCWSTR name) override
     {
         MaybePrint(L"Hardware Adapter updated: Id %llu, Name %ls\n", adapterId, name);
         return S_OK;
     }
 
-    HRESULT DefineHardwareCommandQueue(UINT64 adapterId, UINT64* hardwareCommandQueueId) override
+    HRESULT OnHardwareCommandQueue(UINT64 adapterId, UINT64* hardwareCommandQueueId) override
     {
         *hardwareCommandQueueId = ++m_nextHardwareCommandQueueId;
         MaybePrint(L"Hardware Command Queue defined: AdapterId %llu, CommandQueueId %llu\n", adapterId, *hardwareCommandQueueId);
         return S_OK;
     }
 
-    HRESULT UpdateHardwareCommandQueue(UINT64 hardwareCommandQueueId, PCWSTR name) override
+    HRESULT OnHardwareCommandQueueName(UINT64 hardwareCommandQueueId, PCWSTR name) override
     {
         MaybePrint(L"Hardware Command Queue updated: CommandQueueId %llu, Name %ls\n", hardwareCommandQueueId, name);
         return S_OK;
     }
 
-    HRESULT DefineApiCommandQueue(
+    HRESULT OnApiCommandQueue(
         UINT32 processId,
         UINT64 hardwareAdapterId,
         PCWSTR commandQueueType,
@@ -327,13 +296,13 @@ public:
         return S_OK;
     }
 
-    HRESULT UpdateApiCommandQueue(UINT64 apiCommandQueueId, PCWSTR name) override
+    HRESULT OnApiCommandQueueName(UINT64 apiCommandQueueId, PCWSTR name) override
     {
         MaybePrint(L"API Command Queue updated: CommandQueueId %llu, Name %ls\n", apiCommandQueueId, name);
         return S_OK;
     }
 
-    HRESULT EndApiCommandQueue(UINT64 apiCommandQueueId, INT64 endTimestamp) override
+    HRESULT OnApiCommandQueueEnd(UINT64 apiCommandQueueId, INT64 endTimestamp) override
     {
         MaybePrint(L"API Command Queue ended: CommandQueueId %llu, EndTimestamp %lld\n", apiCommandQueueId, endTimestamp);
         return S_OK;
@@ -360,7 +329,7 @@ class PixCounterCallbacksPrintf : public PixCounterCallbacks
     }
 
 public:
-    HRESULT StorePixCounterInfo(
+    HRESULT OnPixCounterInfo(
         UINT64 groupId,
         UINT32 processId,
         PCWSTR name,
@@ -382,7 +351,7 @@ public:
         return S_OK;
     }
 
-    HRESULT StorePixCounterInfoWithDefinition(
+    HRESULT OnPixCounterInfoWithDefinition(
         UINT64 groupId,
         UINT32 processId,
         PCWSTR name,
@@ -406,7 +375,7 @@ public:
         return S_OK;
     }
 
-    HRESULT StorePixCounterBudget(UINT64 counterId, UINT64 budgetCounterId, CounterBudgetType budgetType, CounterBudgetSource budgetSource) override
+    HRESULT OnPixCounterBudget(UINT64 counterId, UINT64 budgetCounterId, CounterBudgetType budgetType, CounterBudgetSource budgetSource) override
     {
         MaybePrint(L"Pix Counter Budget stored: CounterId %llu, BudgetCounterId %llu, BudgetType %d, BudgetSource %d\n",
             counterId,
@@ -416,7 +385,7 @@ public:
         return S_OK;
     }
 
-    HRESULT StorePixCounter(const _In_count_(count) CounterDataPoint* dataPoints, UINT32 count) override
+    HRESULT OnPixCounterData(const _In_count_(count) CounterDataPoint* dataPoints, UINT32 count) override
     {
         for (auto i = 0u; i < count; ++i)
         {
@@ -428,7 +397,7 @@ public:
         return S_OK;
     }
 
-    HRESULT StorePixCounterGroup(UINT64 parentGroupId, PCWSTR name, PCWSTR description, UINT64* groupId) override
+    HRESULT OnPixCounterGroup(UINT64 parentGroupId, PCWSTR name, PCWSTR description, UINT64* groupId) override
     {
         *groupId = ++m_nextGroupId;
         MaybePrint(L"Pix Counter Group stored: ParentGroupId %llu, Name %ls, Description %ls, GroupId %llu\n",
@@ -457,7 +426,7 @@ class ResidencyEventCallbacksPrintf : public ResidencyEventCallbacks
     }
 
 public:
-    HRESULT StoreResidenceOperation(const ResidencyOperation* data) override
+    HRESULT OnResidencyOperation(const ResidencyOperation* data) override
     {
         MaybePrint(L"%lld Residence Operation: ObjectId %llu, ResidencyCount %u, OperationType %d, ObjectType %d\n",
             data->Timestamp,
@@ -469,7 +438,7 @@ public:
         return S_OK;
     }
 
-    HRESULT StoreDemotedAllocationData(const DemotedAllocation* data, UINT32 count) override
+    HRESULT OnDemotedAllocations(const DemotedAllocation* data, UINT32 count) override
     {
         for (auto i = 0u; i < count; ++i)
         {
@@ -481,7 +450,7 @@ public:
         return S_OK;
     }
 
-    HRESULT StoreAllocationMigrationData(const AllocationMigration* data, UINT32 count) override
+    HRESULT OnAllocationMigrations(const AllocationMigration* data, UINT32 count) override
     {
         for (auto i = 0u; i < count; ++i)
         {
@@ -504,7 +473,7 @@ class PixEventCallbacksPrintf : public PixEventCallbacks
     std::atomic<UINT64> m_nextEventId{ 1 };
 
 public:
-    HRESULT StorePixEvents(UINT32 processId, UINT32 threadId, const PixCpuEvent* pEvents, UINT64* pContextIds, UINT32 count) override
+    HRESULT OnPixEvents(UINT32 processId, UINT32 threadId, const PixCpuEvent* pEvents, UINT64* pContextIds, UINT32 count) override
     {
         for (UINT32 i = 0; i < count; ++i)
         {
@@ -513,35 +482,38 @@ public:
         return S_OK;
     }
 
-    HRESULT StorePixGpuEvents(const GpuEvent* pGpuEvents, UINT32 count) override { return S_OK; }
+    HRESULT OnPixGpuEvents(const GpuEvent* pGpuEvents, UINT32 count) override { return S_OK; }
     HRESULT FinalizeGpuEventsForCpuEventIds(const UINT64* pEventIds, UINT32 count) override { return S_OK; }
-    HRESULT StoreMemoryEvent(const PixMemoryEvent* data) override { return S_OK; }
+    HRESULT OnMemoryEvent(const PixMemoryEvent* data) override { return S_OK; }
 };
 
 class GpuTimingsCallbacksPrintf : public GpuTimingsCallbacks
 {
     std::atomic<UINT64> m_nextExecutionId{ 1 };
-    std::atomic<UINT64> m_nextWorkId{ 1 };
     std::atomic<UINT64> m_nextMarkerId{ 1 };
 
 public:
-    HRESULT DefineGpuExecution(UINT32 processId, UINT32 threadId, UINT64 apiCommandQueueId, INT64 cpuSubmitTime, UINT64 presentToken, UINT64* gpuExecutionId) override
+    HRESULT OnGpuExecutionBegin(UINT32 processId, UINT32 threadId, UINT64 apiCommandQueueId, INT64 cpuSubmitTime, UINT64 presentToken, UINT64* gpuExecutionId) override
     {
         *gpuExecutionId = ++m_nextExecutionId;
         return S_OK;
     }
 
-    HRESULT CompleteGpuExecution(UINT64 gpuExecutionId) override { return S_OK; }
+    HRESULT OnGpuExecutionComplete(UINT64 gpuExecutionId) override { return S_OK; }
 
-    HRESULT StoreGpuWork2(UINT64 hardwareCommandQueueId, UINT64 gpuExecutionId, UINT32 commandListIndexInExecution, UINT64 apiMarkerId, INT64 beginTimestamp, INT64 endTimestamp, UINT64* gpuWorkId) override
+    HRESULT OnGpuWork(UINT64 hardwareCommandQueueId, UINT64 gpuExecutionId, UINT32 commandListIndexInExecution, UINT64 apiMarkerId, INT64 beginTimestamp, INT64 endTimestamp) override
     {
-        *gpuWorkId = ++m_nextWorkId;
         return S_OK;
     }
 
-    HRESULT StoreApiMarker(UINT32 processId, UINT32 threadId, PCWSTR name, INT64 timeStamp, UINT64* apiMarkerId) override
+    HRESULT OnApiMarker(UINT32 processId, UINT32 threadId, PCWSTR name, INT64 timeStamp, UINT64* apiMarkerId) override
     {
         *apiMarkerId = ++m_nextMarkerId;
+        return S_OK;
+    }
+
+    HRESULT OnCommandListName(UINT64 gpuExecutionId, UINT32 commandListIndexInExecution, PCWSTR name) override
+    {
         return S_OK;
     }
 };
@@ -549,7 +521,7 @@ public:
 class PipelineStateEventCallbacksPrintf : public PipelineStateEventCallbacks
 {
 public:
-    HRESULT AddPsoCompilation(UINT32 processId, UINT32 threadId, UINT64 apiObjectId, INT64 startTimestamp, INT64 endTimestamp) override
+    HRESULT OnPsoCompilation(UINT32 processId, UINT32 threadId, UINT64 apiObjectId, INT64 startTimestamp, INT64 endTimestamp) override
     {
         return S_OK;
     }
@@ -575,6 +547,62 @@ public:
     HRESULT OnD3D12JournalEntry(INT64 timestamp, UINT32 index, UINT32 code, UINT32 threadId, std::string_view message) override
     {
         printf("[D3D12 runtime failure] code=0x%08X thread=%u slot=%u: %.*s\n", code, threadId, index, (int)message.size(), message.data());
+        return S_OK;
+    }
+};
+
+// Prints correlated DirectStorage activity decoded from the DirectStorage ETW provider.
+class DirectStorageCallbacksPrintf : public DirectStorageCallbacks
+{
+public:
+    HRESULT OnDirectStorageFile(UINT16 fileId, INT64 timestamp, std::wstring_view path) override
+    {
+        wprintf(L"[DirectStorage] file id=%u: %.*ls\n", fileId, (int)path.size(), path.data());
+        return S_OK;
+    }
+
+    HRESULT OnDirectStorageQueue(UINT16 queueId, INT64 timestamp, std::string_view name) override
+    {
+        printf("[DirectStorage] queue id=%u: %.*s\n", queueId, (int)name.size(), name.data());
+        return S_OK;
+    }
+
+    HRESULT OnDirectStorageReadRequest(const ReadRequest& request) override
+    {
+        printf("[DirectStorage] read queue=%u file=%u offset=%llu size=%u compression=%u shuffle=%u enqueue=%lld completion=%lld\n",
+            request.QueueId, request.FileId, (unsigned long long)request.Offset, request.Size,
+            request.CompressionType, request.ShuffleType, (long long)request.EnqueueTimestamp, (long long)request.CompletionTimestamp);
+        return S_OK;
+    }
+
+    HRESULT OnDirectStorageStatus(const StatusNotification& status) override
+    {
+        printf("[DirectStorage] status queue=%u array=0x%llX index=%llu enqueue=%lld completion=%lld\n",
+            status.QueueId, (unsigned long long)status.StatusArray, (unsigned long long)status.Index,
+            (long long)status.EnqueueTimestamp, (long long)status.CompletionTimestamp);
+        return S_OK;
+    }
+
+    HRESULT OnDirectStorageFenceSignal(const FenceSignal& signal) override
+    {
+        printf("[DirectStorage] fence queue=%u fence=0x%llX value=%llu enqueue=%lld completion=%lld\n",
+            signal.QueueId, (unsigned long long)signal.Fence, (unsigned long long)signal.Value,
+            (long long)signal.EnqueueTimestamp, (long long)signal.CompletionTimestamp);
+        return S_OK;
+    }
+
+    HRESULT OnDirectStorageSetEvent(const SetEventNotification& setEvent) override
+    {
+        printf("[DirectStorage] setevent queue=%u handle=0x%llX enqueue=%lld completion=%lld\n",
+            setEvent.QueueId, (unsigned long long)setEvent.Handle,
+            (long long)setEvent.EnqueueTimestamp, (long long)setEvent.CompletionTimestamp);
+        return S_OK;
+    }
+
+    HRESULT OnDirectStorageSubmit(const Submit& submit) override
+    {
+        printf("[DirectStorage] submit queue=%u auto=%d timestamp=%lld\n",
+            submit.QueueId, submit.AutoSubmitted ? 1 : 0, (long long)submit.Timestamp);
         return S_OK;
     }
 };

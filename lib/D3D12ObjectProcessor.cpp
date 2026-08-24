@@ -4,6 +4,9 @@
 #include "pch.h"
 #include "D3D12ObjectProcessor.h"
 
+namespace DirectX::Etw
+{
+
 D3D12ObjectProcessor::HeapEntry::HeapEntry()
 {
     Timestamp = InvalidValue;
@@ -371,6 +374,10 @@ void D3D12ObjectProcessor::AddResource(ResourceEntry resourceEntry, uint64_t dev
         if (allocationInfoIndexIt != m_objectAddressToAllocationInfoHandle.end())
         {
             placement.GpuVirtualAddress = GetGpuVirtualAddressFromAllocationInfoHandle(allocationInfoIndexIt->second) + resourceEntry.ResourceHeapData.ImmutableHeapOffset;
+
+            // A placed resource references this heap, so it's a real (immutable) heap. If we were
+            // holding the heap back as an ambiguous implied-heap candidate, store it now.
+            MaterializeDeferredAmbiguousHeapIfPresent(resourceEntry.ResourceHeapData.HeapObjectAddress, callbacks);
         }
         else
         {
@@ -391,22 +398,26 @@ void D3D12ObjectProcessor::AddResource(ResourceEntry resourceEntry, uint64_t dev
         placement.Placement = ResourcePlacement::Committed;
 
         // ReportHeap might be fired before ReportResource.
-        // If so we can insert the resource entry into the database right now.
-        const auto heapIt = m_heapDataByConjoinedResource.find(resourceEntry.ObjectAddress);
-        if (heapIt != m_heapDataByConjoinedResource.end())
+        // If the heap arrived first it's held back as an ambiguous candidate; its full entry lives in
+        // m_deferredEntriesByObjectAddress and is reachable via the reverse index. If it's there we have the
+        // heap data we need to insert this committed resource right now.
+        const auto deferredHeapAddressIt = m_deferredAmbiguousHeapAddressByResource.find(resourceEntry.ObjectAddress);
+        if (deferredHeapAddressIt != m_deferredAmbiguousHeapAddressByResource.end())
         {
-            const auto& heapData = heapIt->second;
+            // The reverse index must point at a deferred entry that is actually a heap.
+            assert(std::holds_alternative<HeapEntry>(m_deferredEntriesByObjectAddress.at(deferredHeapAddressIt->second)));
+            const auto& heapEntry = std::get<HeapEntry>(m_deferredEntriesByObjectAddress.at(deferredHeapAddressIt->second));
 
-            placement.GpuVirtualAddress = heapData.GpuVirtualBaseAddress;
-            placement.GpuVirtualSize = heapData.GpuVirtualSize;
-            desc.Alignment = heapData.Alignment;
+            placement.GpuVirtualAddress = heapEntry.Placement.GpuVirtualAddress;
+            placement.GpuVirtualSize = heapEntry.Placement.GpuVirtualSize;
+            desc.Alignment = heapEntry.Desc.Alignment;
 
-            placement.CommittedHeapProperties = heapData.Properties;
-            placement.CommittedHeapFlags = heapData.Flags;
+            placement.CommittedHeapProperties = heapEntry.Desc.Properties;
+            placement.CommittedHeapFlags = heapEntry.Desc.Flags;
 
-            const auto result = m_heapDataByConjoinedResource.erase(resourceEntry.ObjectAddress);
-            DBG_UNREFERENCED_LOCAL_VARIABLE(result);
-            assert(result == 1);
+            // Now that we know this committed resource owns the heap, the heap is implied, so drop it
+            // (this also removes the deferred entry and the reverse-index entry).
+            DropDeferredAmbiguousHeapByResource(resourceEntry.ObjectAddress);
         }
         else
         {
@@ -427,7 +438,15 @@ void D3D12ObjectProcessor::AddResource(ResourceEntry resourceEntry, uint64_t dev
         break;
     }
     case ResourceHeapType::ImplicitResource:
-        // implicit resources are created by the runtime and can be safely ignored
+        // Implicit resources are created by the runtime when you create a heap (from a call to CreateHeap).
+        // Therefore a heap whose conjoined resource matches an implicit resource is a real heap, so we record this
+        // resource's address; when such a heap arrives we recognize it as real and store it.
+        m_implicitResourceAddresses.insert(resourceEntry.ObjectAddress);
+
+        // The heap may already have arrived and been held back as an ambiguous candidate. Now that we know
+        // its conjoined resource is an implicit resource, it's a real heap, so materialize it eagerly instead
+        // of waiting for the capture to end.
+        MaterializeDeferredAmbiguousHeapByResource(resourceEntry.ObjectAddress, callbacks);
         return;
     default:
         ThrowToolException(E_UNEXPECTED);
@@ -590,7 +609,7 @@ void D3D12ObjectProcessor::UpdateName(uint64_t objectAddress, std::wstring_view 
         const auto objectIt = m_apiObjectTypeAddressToIds[type].find(objectAddress);
         if (objectIt != m_apiObjectTypeAddressToIds[type].end())
         {
-            callbacks->UpdateApiObjectName(timestamp, (ApiObjectType)type, objectIt->second, name.data());
+            callbacks->OnApiObjectName(timestamp, (ApiObjectType)type, objectIt->second, name);
             break;
         }
     }
@@ -637,6 +656,28 @@ void D3D12ObjectProcessor::DestroyApiObject(ApiObjectType objectType, uint64_t o
         }
         else if (const HeapEntry* deferredHeapEntry = std::get_if<HeapEntry>(&deferredEntry))
         {
+            // A complete heap that's still deferred is one we were holding back as an ambiguous
+            // implied-heap candidate. Since it's being destroyed before any committed resource
+            // claimed it, treat it as a real heap and materialize it so we don't lose it, then
+            // destroy it like a normal heap.
+            if (deferredHeapEntry->IsComplete())
+            {
+                // deferredEntry is a local copy, so deferredHeapEntry stays valid even after
+                // InsertD3D12Heap erases the entry from m_deferredEntriesByObjectAddress.
+                m_deferredAmbiguousHeapAddressByResource.erase(deferredHeapEntry->ConjoinedResource);
+                InsertD3D12Heap(*deferredHeapEntry, callbacks, /*finalizing*/ true);
+
+                const auto storedIt = m_apiObjectTypeAddressToIds[(size_t)ApiObjectType::Heap].find(objectAddress);
+                if (storedIt != m_apiObjectTypeAddressToIds[(size_t)ApiObjectType::Heap].end())
+                {
+                    ThrowFailure(callbacks->OnObjectDestruction(timestamp, ApiObjectType::Heap, storedIt->second));
+                    m_apiObjectTypeAddressToIds[(size_t)ApiObjectType::Heap].erase(objectAddress);
+                }
+
+                // InsertD3D12Heap already erased the deferred entry.
+                return;
+            }
+
             m_deferredPlacedResourcesByHeapObjectAddress.erase(deferredHeapEntry->ObjectAddress);
         }
         
@@ -667,7 +708,9 @@ void D3D12ObjectProcessor::ProcessDeferredEntries(ApiObjectCallbacks* callbacks)
                 // This means we will not insert any deferred entries that do not have a valid DeviceId (should be very unusual).
                 if (heapEntry->DeviceId.has_value())
                 {
-                    InsertD3D12Heap(*heapEntry, callbacks);
+                    // End of capture: any heap we were still holding back as an ambiguous implied-heap
+                    // candidate never had a committed resource claim it, so assume it's a real heap.
+                    InsertD3D12Heap(*heapEntry, callbacks, /*finalizing*/ true);
                 }
             }
             else if (auto* pipelineStateEntry = std::get_if<PipelineStateEntry>(&it->second))
@@ -782,13 +825,15 @@ uint64_t D3D12ObjectProcessor::GetGpuVirtualAddressFromAllocationInfoHandle(Allo
     return m_allocationTracker.GetAllocationInfo(handle).virtualAddressInfos[0].startAddress;
 }
 
-void D3D12ObjectProcessor::InsertD3D12Heap(const HeapEntry& entry, ApiObjectCallbacks* callbacks)
+void D3D12ObjectProcessor::InsertD3D12Heap(const HeapEntry& entry, ApiObjectCallbacks* callbacks, bool finalizing)
 {
     // For placed resources it's possible ReportResource happens before ReportHeap.
     // If that happens we defer inserting the resource entry until now.
+    bool hadDeferredPlacedResources = false;
     const auto placedResourceIt = m_deferredPlacedResourcesByHeapObjectAddress.find(entry.ObjectAddress);
     if (placedResourceIt != m_deferredPlacedResourcesByHeapObjectAddress.end())
     {
+        hadDeferredPlacedResources = true;
         for (const auto& resource : placedResourceIt->second)
         {
             assert(m_deferredEntriesByObjectAddress.count(resource) == 1);
@@ -809,7 +854,8 @@ void D3D12ObjectProcessor::InsertD3D12Heap(const HeapEntry& entry, ApiObjectCall
     // For committed resources the actual allocation size won't be known until the heap is created.
     // Look up the deferred committed resource entry and then insert it.
     const auto conjoinedResourceIt = m_deferredEntriesByObjectAddress.find(entry.ConjoinedResource);
-    if (conjoinedResourceIt != m_deferredEntriesByObjectAddress.end())
+    if (conjoinedResourceIt != m_deferredEntriesByObjectAddress.end()
+        && std::holds_alternative<ResourceEntry>(conjoinedResourceIt->second))
     {
         auto& resourceEntry = std::get<ResourceEntry>(conjoinedResourceIt->second);
         assert(resourceEntry.DeviceId == entry.DeviceId);   // sanity check the heap and resource are on the same device
@@ -827,27 +873,99 @@ void D3D12ObjectProcessor::InsertD3D12Heap(const HeapEntry& entry, ApiObjectCall
     }
     else
     {
-        // For committed resources ReportHeap can happen before ReportResource. In this case we need to store
-        // the heap information for when ReportResource happens.
-        // Unfortunately we can't tell whether this is an implied heap or not (immutable heaps can have a non-zero conjoinedResource too),
-        // so we have to store everything.
-        // We don't need to ensure this is a new insertion because if the heap is implied then it will map to exactly one resource.
-        m_heapDataByConjoinedResource[entry.ConjoinedResource] = ConjoinedHeapData{
-            entry.Placement.GpuVirtualAddress,
-            entry.Placement.GpuVirtualSize,
-            entry.Desc.Alignment,
-            entry.Desc.Properties,
-            entry.Desc.Flags
-        };
+        // ReportHeap can happen before ReportResource so we can't always tell yet whether this is an
+        // implied heap (created as part of a committed resource, which we don't store) or a real
+        // (immutable) heap, because both can have a non-zero conjoined resource.
+        // Therefore we have the following cases:
+        //   - conjoined resource of 0                          -> real heap, store now
+        //   - conjoined resource is a known implicit resource  -> real (explicit) heap, store now
+        //   - a placed resource referenced it                  -> real (immutable) heap, store now
+        //   - finalizing (end of capture)                      -> assume real, store now
+        //   - otherwise                                        -> ambiguous, hold back until a committed
+        //                                                         resource claims it (implied -> dropped), an
+        //                                                         implicit resource reveals it (real -> stored),
+        //                                                         or the capture ends (assume real)
+        const bool unambiguouslyImmutableHeap =
+            finalizing
+            || entry.ConjoinedResource == 0
+            || m_implicitResourceAddresses.count(entry.ConjoinedResource) > 0
+            || hadDeferredPlacedResources;
 
-        UINT64 objectId;
-        ThrowFailure(callbacks->OnHeapCreation(entry.Timestamp, entry.DeviceId.value(), entry.ProcessId, entry.ThreadId, &entry.Desc, &entry.Placement, &objectId));
+        if (unambiguouslyImmutableHeap)
+        {
+            UINT64 objectId;
+            ThrowFailure(callbacks->OnHeapCreation(entry.Timestamp, entry.DeviceId.value(), entry.ProcessId, entry.ThreadId, &entry.Desc, &entry.Placement, &objectId));
 
-        m_apiObjectTypeAddressToIds[(size_t)ApiObjectType::Heap][entry.ObjectAddress] = objectId;
-        this->OnApiObjectInserted({ ApiObjectType::Heap, objectId, entry.ThreadId });
+            m_apiObjectTypeAddressToIds[(size_t)ApiObjectType::Heap][entry.ObjectAddress] = objectId;
+            this->OnApiObjectInserted({ ApiObjectType::Heap, objectId, entry.ThreadId });
+
+            // An implicit resource maps to exactly one heap, so once that heap is stored we'll never
+            // need to consult its conjoined resource again. Drop it to keep the set from growing for
+            // the lifetime of the capture. (No-op when the conjoined resource isn't an implicit one.)
+            m_implicitResourceAddresses.erase(entry.ConjoinedResource);
+        }
+        else
+        {
+            // This is an ambiguous heap that we can't yet classify as either implied or real.
+            // Re-defer the heap (its full entry is the source of truth) and record a reverse index from its
+            // conjoined resource to its object address so an arriving resource can find and classify it.
+            // A conjoined resource maps to exactly one ambiguous heap, so we should never be overwriting an
+            // existing entry for a different heap.
+            assert(
+                m_deferredAmbiguousHeapAddressByResource.count(entry.ConjoinedResource) == 0
+                || m_deferredAmbiguousHeapAddressByResource.at(entry.ConjoinedResource) == entry.ObjectAddress);
+            m_deferredAmbiguousHeapAddressByResource[entry.ConjoinedResource] = entry.ObjectAddress;
+            m_deferredEntriesByObjectAddress[entry.ObjectAddress] = entry;
+            return;
+        }
     }
 
     (void)m_deferredEntriesByObjectAddress.erase(entry.ObjectAddress);
+}
+
+void D3D12ObjectProcessor::MaterializeDeferredAmbiguousHeapIfPresent(uint64_t heapObjectAddress, ApiObjectCallbacks* callbacks)
+{
+    const auto deferredIt = m_deferredEntriesByObjectAddress.find(heapObjectAddress);
+    if (deferredIt == m_deferredEntriesByObjectAddress.end())
+    {
+        // The heap is not in the deferred entries, so we can't materialize it.
+        return;
+    }
+
+    const auto* deferredHeapEntry = std::get_if<HeapEntry>(&deferredIt->second);
+    if (deferredHeapEntry == nullptr || !deferredHeapEntry->IsComplete())
+    {
+        // The deferred heap entry is not a complete HeapEntry, so we can't materialize it.
+        return;
+    }
+
+    // Copy before InsertD3D12Heap erases the deferred entry it points into.
+    const HeapEntry heapEntry = *deferredHeapEntry;
+    m_deferredAmbiguousHeapAddressByResource.erase(heapEntry.ConjoinedResource);
+    InsertD3D12Heap(heapEntry, callbacks, /*finalizing*/ true);
+}
+
+void D3D12ObjectProcessor::DropDeferredAmbiguousHeapByResource(uint64_t resourceObjectAddress)
+{
+    // When a resource reveals that a heap we were holding back as an ambiguous candidate is actually an
+    // implied heap (for a committed resource), drop it so it's never stored as its own object.
+    const auto candidateIt = m_deferredAmbiguousHeapAddressByResource.find(resourceObjectAddress);
+    if (candidateIt != m_deferredAmbiguousHeapAddressByResource.end())
+    {
+        m_deferredEntriesByObjectAddress.erase(candidateIt->second);
+        m_deferredAmbiguousHeapAddressByResource.erase(candidateIt);
+    }
+}
+
+void D3D12ObjectProcessor::MaterializeDeferredAmbiguousHeapByResource(uint64_t resourceObjectAddress, ApiObjectCallbacks* callbacks)
+{
+    // We only know the resource address here, so look up the deferred heap that named it as its conjoined
+    // resource and hand off to the heap-keyed materialize helper (which stores the heap and cleans up).
+    const auto candidateIt = m_deferredAmbiguousHeapAddressByResource.find(resourceObjectAddress);
+    if (candidateIt != m_deferredAmbiguousHeapAddressByResource.end())
+    {
+        MaterializeDeferredAmbiguousHeapIfPresent(candidateIt->second, callbacks);
+    }
 }
 
 void D3D12ObjectProcessor::InsertD3D12Resource(const ResourceEntry& entry, ApiObjectCallbacks* callbacks)
@@ -949,5 +1067,7 @@ void D3D12ObjectProcessor::InsertD3D12MetaCommand(const MetaCommandEntry& entry,
 
 void D3D12ObjectProcessor::UpdateApiObjectSizeAndAddress(uint64_t timestamp, ApiObjectType objectType, UINT64 id, uint64_t memoryUsage, uint64_t baseAddress, ApiObjectCallbacks* callbacks) const
 {
-    ThrowFailure(callbacks->UpdateApiObjectSizeAndAddress(timestamp, objectType, id, memoryUsage, baseAddress));
+    ThrowFailure(callbacks->OnApiObjectSizeAndAddress(timestamp, objectType, id, memoryUsage, baseAddress));
 }
+
+} // namespace DirectX::Etw

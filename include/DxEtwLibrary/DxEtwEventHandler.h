@@ -3,14 +3,61 @@
 
 #pragma once
 
+#include <memory>
+
 #include <DxEtwLibrary/EtwDispatcher.h>
 #include <DxEtwLibrary/EtwCallbacks.h>
 #include <DxEtwLibrary/EtwDiagnostics.h>
 
+namespace DirectX::Etw
+{
+
 class DxEtwProcessor;
 
-// Converts the raw timestamps carried by ETW event records into the nanosecond
-// timeline the library hands to the callbacks.
+// DxEtwEventCallbacks: callbacks you implement. The library will dispatch to your callbacks when relevant
+// events occur. Leaving a callback as nullptr is fine - the library will replace it with a barebones impl.
+// Supplied callbacks must outlive the handler. One object could implement multiple callbacks.
+struct DxEtwEventCallbacks
+{
+    ApiObjectCallbacks* ApiObjectCallbacks = nullptr;
+    PixCounterCallbacks* PixCounterCallbacks = nullptr;
+    ResidencyEventCallbacks* ResidencyEventCallbacks = nullptr;
+    PixEventCallbacks* PixEventCallbacks = nullptr;
+    MonitorEventCallbacks* MonitorEventCallbacks = nullptr;
+    GpuTimingsCallbacks* GpuTimingsCallbacks = nullptr;
+    DxgkObjectCallbacks* DxgkObjectCallbacks = nullptr;
+    PipelineStateEventCallbacks* PipelineStateEventCallbacks = nullptr;
+    DirectStorageCallbacks* DirectStorageCallbacks = nullptr;
+    DiagnosticsSink* DiagnosticsSink = nullptr;
+    RuntimeFailureCallbacks* RuntimeFailureCallbacks = nullptr;
+    GpuEngineActivityCallbacks* GpuEngineActivityCallbacks = nullptr;
+};
+
+// Filters to help make the ETW processing code a bit more efficient. Try to make these match the callbacks
+// you set in DxEtwEventCallbacks, but setting them to true will give you maximal data.
+struct DxEtwLibraryOptions
+{
+    // Track D3D12 API-object lifetimes (resources, heaps, command queues,
+    // descriptor heaps, command allocators, pipeline states, object names) and
+    // their GPU residency/memory activity.
+    bool TrackApiObjects = false;
+
+    // Track + process GPU timing data that comes from the driver (via history buffers).
+    // Do additional tracking to provide context/data, not just the raw timing data.
+    bool TrackGpuTiming = false;
+
+    // Pair up DMA packet submit/complete events into per-engine spans, for every
+    // process on the machine. Attribution comes from the DXGK device, context and
+    // hardware queue handlers, which always run, so this works on its own.
+    bool TrackGpuEngineActivity = false;
+};
+
+// TimestampConverter: Optional interface to convert raw timestamps carried by ETW event records
+// into nanosecond values that the library will pass into your callbacks.
+// 
+// The library will use a reasonable default (QpcTimestampConverter) if you don't provide your
+// own impl. That should be fine for most live situations, but probably not for offline .etl file
+// processing - you'll probably want to implement your own TimestampConverter for that.
 //
 // IMPORTANT: the consumer must open the ETW session in raw-QPC mode -
 // PROCESS_TRACE_MODE_RAW_TIMESTAMP on the trace, and Wnode.ClientContext = 1
@@ -24,94 +71,74 @@ public:
     virtual ~TimestampConverter() = default;
 
     // Timestamp (in nanoseconds) of the most recently processed event, or 0 if
-    // none has been processed yet. The library uses this as "now" when flushing
-    // correlation state on completion (emitting a final memory-counter sample,
-    // timing out unmatched GPU markers), so an implementation that always
-    // returns 0 disables those final flushes.
-    virtual LONGLONG GetLastEventTimeStamp() const = 0;
+    // none has been processed yet.
+    virtual INT64 GetLastEventTimeStamp() const = 0;
 
     // Converts a raw QPC tick count (EventHeader.TimeStamp in raw-QPC mode) to a
-    // nanosecond timestamp on the library's timeline. A typical implementation is
-    // TicksToNanoseconds(count, GetHighPerformanceFrequency()).
-    virtual LONGLONG ConvertClockToTimeStamp(LONGLONG count) const = 0;
+    // nanosecond timestamp on the library's timeline.
+    virtual INT64 ConvertClockToTimeStamp(INT64 count) const = 0;
 
     // The QPC frequency in ticks per second (QueryPerformanceFrequency).
     virtual INT64 GetHighPerformanceFrequency() const = 0;
 };
 
+
+// PixEventConfig: Optional interface to configure how PIX events are decoded. You probably don't need to set this.
+struct PixEventConfig
+{
+    // When true, GPU-context begin/end events also show on the CPU thread that
+    // emitted them (legacy behavior); when false they appear only on GPU lanes.
+    bool MirrorGpuContextEventsToCpu = false;
+};
+
+// DxEtwEventHandler: the object you create to handle ETW events. You own the ETW
+// session and feed it records; the handler decodes them and dispatches to your callbacks.
 class DxEtwEventHandler
 {
+    std::unique_ptr<TimestampConverter> m_ownedTimestampConverter;
     std::unique_ptr<DxEtwProcessor> m_processor;
-    std::unique_ptr<DirectX::Etw::EtwDispatcher<DxEtwProcessor>> m_dispatcher;
-    DirectX::Etw::Options m_options;
-    bool m_gpuOnlyEvents;
-    DWORD m_targetProcessId;
+    std::unique_ptr<EtwDispatcher<DxEtwProcessor>> m_dispatcher;
+
+    DxEtwLibraryOptions m_options;
+    bool m_mirrorGpuContextEventsToCpu;
+    DWORD m_filterToProcessId;
 
 public:
-    // The eight callback interfaces and the timestampConverter are REQUIRED: the
-    // constructor throws (E_INVALIDARG) if any of them is null. They cannot be
-    // omitted individually because the library passes ids minted by one callback
-    // into another (for example a command-queue id from DxgkObjectCallbacks is
-    // handed to GpuTimingsCallbacks), so a null callback would corrupt another's
-    // data, not merely suppress its own. Supply a no-op implementation for any
-    // category you do not care about (see <DxEtwLibrary/NoOpCallbacks.h> for
-    // ready-made no-op bases).
-    //
-    // Two arguments are genuinely optional - pass null for either:
-    //   - diagnosticsSink: null gives a no-op sink.
-    //   - runtimeFailureCallbacks: surfaces the D3D12 runtime's failure journal
-    //     entries (EventD3D12JournalEntry); null means those events are ignored.
-    //     Unlike the eight above it mints no ids fed to other callbacks, so it is
-    //     safe to omit.
-    //
-    // targetProcessId selects the single process whose D3D12/DXGK work is
-    // decoded; the library correlates one target process at a time. gpuOnlyEvents
-    // links GPU events to their originating CPU PIX markers when true.
+    static std::unique_ptr<DxEtwEventHandler> Create(
+        DWORD filterToProcessId,
+        const DxEtwLibraryOptions& libraryOptions,
+        const DxEtwEventCallbacks& callbacks);
+
+    static std::unique_ptr<DxEtwEventHandler> Create(
+        DWORD filterToProcessId,
+        const DxEtwLibraryOptions& libraryOptions,
+        const DxEtwEventCallbacks& callbacks,
+        const TimestampConverter& timestampConverter,
+        const PixEventConfig& pixEventConfig = {});
+
+    // Prefer to use Create() but using the constructor will work.
     DxEtwEventHandler(
-        const DirectX::Etw::Options& options,
-        bool gpuOnlyEvents,
-        std::unique_ptr<ApiObjectCallbacks> apiObjectCallbacks,
-        std::unique_ptr<PixCounterCallbacks> pixCounterCallbacks,
-        std::unique_ptr<ResidencyEventCallbacks> residencyEventCallbacks,
-        std::unique_ptr<PixEventCallbacks> pixEventCallbacks,
-        std::unique_ptr<MonitorEventCallbacks> monitorEventCallbacks,
-        std::unique_ptr<GpuTimingsCallbacks> gpuTimingsCallbacks,
-        std::unique_ptr<DxgkObjectCallbacks> dxgkObjectCallbacks,
-        std::unique_ptr<PipelineStateEventCallbacks> pipelineStateEventCallbacks,
-        std::unique_ptr<DirectX::Etw::DiagnosticsSink> diagnosticsSink,
-        std::unique_ptr<RuntimeFailureCallbacks> runtimeFailureCallbacks,
-        std::unique_ptr<TimestampConverter> timestampConverter,
-        DWORD targetProcessId);
+        DWORD filterToProcessId,
+        const DxEtwLibraryOptions& libraryOptions,
+        const DxEtwEventCallbacks& callbacks,
+        const PixEventConfig& pixEventConfig,
+        const TimestampConverter* timestampConverter);
 
-    virtual ~DxEtwEventHandler();
+    virtual ~DxEtwEventHandler() = default;
 
-    // Decodes and correlates a single ETW event record, invoking the relevant
-    // callbacks. Call this from your ETW consumer's EventRecordCallback for every
-    // delivered record; records from providers the library does not handle are
+    // Decodes and correlates one ETW event record, invoking the relevant
+    // callbacks. Call it from your consumer's EventRecordCallback for every
+    // delivered record; records from providers the library doesn't handle are
     // ignored.
-    //
-    // This can throw: a malformed/truncated payload, or a callback that returns a
-    // failure HRESULT, surfaces as an exception and propagates to the caller (a
-    // partial event surfaces nothing to the callbacks before it throws). Because
-    // this runs inside ETW's ProcessTrace callback (C frames), the consumer MUST
-    // wrap the call in try/catch so a propagating exception never unwinds through
-    // ProcessTrace - catch it, drop that event, and decide whether to continue
-    // (see the sample's OnEvent and the functional test's SimpleEtwSession).
     void HandleEventRecord(PEVENT_RECORD record);
 
     // Flushes any remaining correlation state, invoking the callbacks for data
-    // that was still pending. Call once after ProcessTrace returns (the trace has
-    // drained). Unlike HandleEventRecord, exceptions are not swallowed here.
+    // that was still pending.
     void OnDataComplete();
 
-    // Records ETW data-loss totals for the trace so they can be surfaced through
-    // the diagnostics sink and queried via GetLostEventStatistics. The counts in
-    // logfile.LogfileHeader (EventsLost / BuffersLost) are cumulative for the
-    // session; the consumer typically calls this from its ETW BufferCallback
-    // and/or once after ProcessTrace returns.
+    // Records ETW data-loss totals for the trace, surfacing any newly observed
+    // loss to the diagnostics sink.
     void ReportTraceStatistics(const EVENT_TRACE_LOGFILE& logfile);
-
-    // Returns the cumulative ETW data-loss totals last seen via
-    // ReportTraceStatistics. Non-zero values mean some captured data is missing.
-    DirectX::Etw::LostEventStatistics GetLostEventStatistics() const;
 };
+
+} // namespace DirectX::Etw

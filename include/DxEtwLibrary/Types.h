@@ -5,15 +5,8 @@
 
 // Public data types for DxEtwLibrary.
 //
-// The D3D12 API-object callbacks (see EtwCallbacks.h) hand back standard
-// Direct3D 12 structures (D3D12_RESOURCE_DESC, D3D12_HEAP_DESC, ...). The types
-// defined here cover the data the library produces that has no native D3D12
-// representation: the extra placement information that accompanies an object
-// (its GPU virtual address/size and how it was created), device metadata, and
-// the GPU-residency / PIX-runtime events the library decodes from ETW.
-//
-// A consumer translates these into whatever storage it uses; nothing here
-// depends on PIX-internal headers.
+// Generally the callbacks from DxEtwLibrary try to use standard D3D12 or PIX data types.
+// The types in this file cover additional data that don't have standard header equivalents.
 
 #include <d3d12.h>
 #include <cstdint>
@@ -22,18 +15,6 @@
 
 namespace DirectX::Etw
 {
-    // ------------------------------------------------------------------
-    // Library configuration
-    // ------------------------------------------------------------------
-
-    // The subset of capture options the library consumes. A consumer populates
-    // this from its own configuration and passes it to DxEtwEventHandler.
-    struct Options
-    {
-        bool CaptureGpuTiming = false;
-        bool CaptureGpuMemoryUsage = false;
-    };
-
     // Flags describing a reported counter.
     enum class CounterFlags : uint32_t
     {
@@ -96,8 +77,7 @@ namespace DirectX::Etw
         UINT64 GpuVirtualSize;
     };
 
-    // Tiling information for a reserved (tiled) resource. A reserved resource
-    // has no backing memory at creation, so it has no GPU virtual address.
+    // Tiling information for a reserved (tiled) resource.
     struct ReservedResourceInfo
     {
         UINT32 NumTilesForResource;

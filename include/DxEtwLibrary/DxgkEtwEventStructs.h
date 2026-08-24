@@ -8,6 +8,8 @@
 #include "EventTypes.h"
 #include <d3dkmthk.h>
 
+// Strongly-typed event structs representing kernel ETW events, see LDDMCore.man
+
 namespace DirectX::Etw
 {
     struct DxgkVSyncDPCArgs
@@ -100,6 +102,36 @@ namespace DirectX::Etw
         uint64_t parentDxgContext;
         uint64_t hwQueueHandle;
         uint64_t hwQueue;
+    };
+
+    struct DxgkDmaReleaseToGpuArgs
+    {
+        uint64_t hHwQueue;
+        uint64_t progressFenceValue;
+        uint64_t pDmaBuffer;
+        uint32_t ntStatus;
+        uint32_t numberOfQueuedPendingFlip;
+    };
+
+    struct DxgkDmaCompleteByGpuArgs
+    {
+        uint64_t hHwQueue;
+        uint64_t progressFenceValue;
+    };
+
+    struct DxgkDmaSubmitArgs
+    {
+        uint64_t hContext;
+        uint64_t hQueuePacketContext;
+        uint32_t packetType;
+        uint64_t submissionId;
+    };
+
+    struct DxgkDmaIsrCompleteArgs
+    {
+        uint64_t hContext;
+        uint32_t packetType;
+        uint64_t completionId;
     };
 
     struct DxgkAdapterAllocationArgs

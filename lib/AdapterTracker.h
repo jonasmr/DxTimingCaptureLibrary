@@ -6,6 +6,9 @@
 #include "MemoryCounterWriter.h"
 #include "MonitorTracker.h"
 
+namespace DirectX::Etw
+{
+
 class AdapterTracker
 {
     using AdapterSegmentId = uint32_t;
@@ -109,14 +112,14 @@ public:
             // If no description is provided, we use the PnPID as the name.
             // This matches GPU View behavior.
             auto adapterName = itInfo->second.Description.empty() ? pnpDeviceId : itInfo->second.Description;
-            ThrowFailure(dxgkObjectCallbacks->UpdateHardwareAdapter(itInfo->second.AdapterId.Value, adapterName.c_str()));
+            ThrowFailure(dxgkObjectCallbacks->OnHardwareAdapterName(itInfo->second.AdapterId.Value, adapterName.c_str()));
         }
         else
         {
             // This is the first time we have seen this dxgkadapter + adapter luuid combination,
             // so define a new adapter now.
             uint64_t adapterId = 0;
-            ThrowFailure(dxgkObjectCallbacks->DefineHardwareAdapter(&adapterId));
+            ThrowFailure(dxgkObjectCallbacks->OnHardwareAdapter(&adapterId));
 
             PerAdapterInfo info = {};
             info.AdapterId = AdapterId(adapterId);
@@ -161,8 +164,8 @@ public:
                 }
 
                 uint64_t hardwareQueueId = 0;
-                ThrowFailure(dxgkObjectCallbacks->DefineHardwareCommandQueue(itInfo->second.AdapterId.Value, &hardwareQueueId));
-                ThrowFailure(dxgkObjectCallbacks->UpdateHardwareCommandQueue(hardwareQueueId, engineName.c_str()));
+                ThrowFailure(dxgkObjectCallbacks->OnHardwareCommandQueue(itInfo->second.AdapterId.Value, &hardwareQueueId));
+                ThrowFailure(dxgkObjectCallbacks->OnHardwareCommandQueueName(hardwareQueueId, engineName.c_str()));
 
                 size_t requiredNodes = nodeOrdinal + 1;
                 if (itInfo->second.EngineNodeOrdinalToHardwareQueueDatabaseId.size() < requiredNodes)
@@ -201,7 +204,7 @@ public:
         auto monitorId = m_monitorTracker.SetAdapterDescription(monitorEventCallbacks, monitorIdentifier, adapterDescription);
 
         // color is ARGB
-        ThrowFailure(monitorEventCallbacks->StoreVSync(monitorId.Value, timestampNs));
+        ThrowFailure(monitorEventCallbacks->OnVSync(monitorId.Value, timestampNs));
     }
 
     void UpdateSegment(uint64_t dxgAdapter, AdapterSegmentId segmentId, D3DKMT_MEMORY_SEGMENT_GROUP memorySegmentGroup)
@@ -262,7 +265,7 @@ private:
             if (deviceId.find(info.second.PnpDeviceId) != std::wstring_view::npos)
             {
                 info.second.Description = deviceDescription;
-                ThrowFailure(dxgkObjectCallbacks->UpdateHardwareAdapter(info.second.AdapterId.Value, info.second.Description.c_str()));
+                ThrowFailure(dxgkObjectCallbacks->OnHardwareAdapterName(info.second.AdapterId.Value, info.second.Description.c_str()));
                 m_memoryCounterWriters[info.second.MemoryCounterWriterIndex]->UpdateGroupName(info.second.Description.c_str(), counterCallbacks);
 
                 // Update any monitors associated with this adapter
@@ -304,3 +307,5 @@ private:
         return nullptr;
     }
 };
+
+} // namespace DirectX::Etw

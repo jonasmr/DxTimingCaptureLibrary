@@ -7,7 +7,8 @@
 #include "EventData.h"
 #include "EventTypes.h"
 
-// ETW dispatcher argument structs
+// ETW dispatcher argument structs.
+// These are just strongly-typed structs based on the D3D12 ETW event manifest.
 
 namespace DirectX::Etw
 {

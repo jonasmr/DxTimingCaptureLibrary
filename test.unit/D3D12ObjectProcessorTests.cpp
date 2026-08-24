@@ -9,7 +9,7 @@
 // MarkerOp.h (pulled in transitively) expands the D3D12_MARKER_API_* constants
 // from the D3D12 ETW manifest headers, so those must be included first.
 #include <external/d3d/d3d12.h>
-#include <D3D12Events.h>
+#include <external/d3d/D3D12Events.h>
 
 #include <DxEtwLibrary/EtwCallbacks.h>
 
@@ -93,8 +93,8 @@ namespace
         HRESULT OnPipelineStateCreation(INT64, UINT64, UINT32, UINT32, const ObjectPlacementInfo*, UINT64* objectId) override { *objectId = ++m_nextObjectId; return S_OK; }
         HRESULT OnStateObjectCreation(INT64, UINT64, UINT32, UINT32, const ObjectPlacementInfo*, UINT64* objectId) override { *objectId = ++m_nextObjectId; return S_OK; }
         HRESULT OnMetaCommandCreation(INT64, UINT64, UINT32, UINT32, REFGUID, const ObjectPlacementInfo*, UINT64* objectId) override { *objectId = ++m_nextObjectId; return S_OK; }
-        HRESULT UpdateApiObjectName(INT64, ApiObjectType, UINT64, const wchar_t*) override { return S_OK; }
-        HRESULT UpdateApiObjectSizeAndAddress(INT64, ApiObjectType, UINT64, UINT64, UINT64) override { return S_OK; }
+        HRESULT OnApiObjectName(INT64, ApiObjectType, UINT64, std::wstring_view) override { return S_OK; }
+        HRESULT OnApiObjectSizeAndAddress(INT64, ApiObjectType, UINT64, UINT64, UINT64) override { return S_OK; }
 
     private:
         UINT64 m_nextObjectId{ 1 };
@@ -268,11 +268,11 @@ TEST(D3D12ObjectProcessorTests, CommittedResource_HeapReportedBeforeResource)
     EXPECT_EQ(fixture.Callbacks.CommittedResources.front().DeviceId, deviceId);
     EXPECT_EQ(fixture.Callbacks.CommittedResources.front().GpuVirtualAddress, HeapBaseAddress);
 
-    // Asymmetry worth pinning: when the heap is reported first the processor cannot yet
-    // tell its implicit heap apart from a real one, so it also surfaces the heap as its
-    // own object. (When the resource is reported first — see the test above — the heap
-    // is correctly suppressed.)
-    EXPECT_EQ(fixture.Callbacks.Heaps.size(), 1u);
+    // The implicit heap is not surfaced as its own object regardless of arrival order.
+    // A heap reported before its committed resource is held back as an ambiguous candidate;
+    // once the committed resource arrives and claims it, the heap is recognized as implied
+    // and dropped (matching the resource-first ordering in the test above).
+    EXPECT_TRUE(fixture.Callbacks.Heaps.empty());
 }
 
 // --- Placed resource / explicit heap correlation ----------------------------

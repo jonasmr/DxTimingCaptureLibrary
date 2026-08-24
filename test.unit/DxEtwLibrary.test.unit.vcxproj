@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <ProjectGuid>{9ec2c42d-e828-4494-bfb0-c44c193ce04f}</ProjectGuid>
@@ -36,6 +36,10 @@
   <ItemGroup>
     <ClCompile Include="D3D12ObjectProcessorTests.cpp" />
     <ClCompile Include="DiagnosticsTests.cpp" />
+    <ClCompile Include="DirectStorageTests.cpp" />
+    <ClCompile Include="DxgkDmaPacketDecoderTests.cpp" />
+    <ClCompile Include="GpuEngineActivityCallbackTests.cpp" />
+    <ClCompile Include="GpuPacketTrackerTests.cpp" />
     <ClCompile Include="NullContractTests.cpp" />
     <ClCompile Include="EventDataTests.cpp" />
     <ClCompile Include="RuntimeFailureTests.cpp" />

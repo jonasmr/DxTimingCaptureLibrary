@@ -12,6 +12,7 @@
 
 #include <DxEtwLibrary/EtwException.h>
 
+// Helper classes to help interpret raw ETW data
 namespace DirectX::Etw
 {
     class PointerIterator
@@ -133,14 +134,10 @@ namespace DirectX::Etw
 
         PointerRange ReadPointerArray(uint32_t count)
         {
-            // Compute the span in 64-bit so a large, event-controlled count
-            // cannot overflow a 32-bit size and slip past Read()'s bounds check.
             size_t pointerArrayDataSize = static_cast<size_t>(count) * m_pointerByteSize;
             uint8_t* pointerArrayDataStart = m_remainingUserData;
             Read(pointerArrayDataSize);
 
-            // Read() succeeded, so the span lies within the event payload and its
-            // size fits the 32-bit length PointerIterator takes.
             uint32_t pointerArrayDataLength = static_cast<uint32_t>(pointerArrayDataSize);
             return PointerRange(PointerIterator(pointerArrayDataStart, pointerArrayDataLength, m_pointerByteSize, false),
                                 PointerIterator(pointerArrayDataStart, pointerArrayDataLength, m_pointerByteSize, true));
@@ -212,11 +209,6 @@ namespace DirectX::Etw
         template<typename T>
         T* ReadArray(uint32_t count)
         {
-            // Size the read in 64-bit and hand it straight to Read(), which takes
-            // a size_t and bounds-checks it. Routing through ReadBytes(uint32_t)
-            // would truncate the count*sizeof(T) product to 32 bits, so a large
-            // count could wrap to a small size that passes the bounds check while
-            // the caller still reads `count` elements out of bounds.
             return reinterpret_cast<T*>(Read(static_cast<size_t>(count) * sizeof(T)));
         }
 
@@ -242,14 +234,28 @@ namespace DirectX::Etw
         {
             uint32_t cch = ReadUint32();
             wchar_t* n = ReadArray<wchar_t>(cch);
-            return std::wstring_view(n, cch);
+            std::wstring_view value(n, cch);
+            // The ETW payload's character count includes the null terminator; exclude
+            // it so the view holds exactly the string.
+            if (!value.empty() && value.back() == L'\0')
+            {
+                value.remove_suffix(1);
+            }
+            return value;
         }
 
         std::string_view ReadSizedString()
         {
             uint32_t cch = ReadUint32();
             char* n = ReadArray<char>(cch);
-            return std::string_view(n, cch);
+            std::string_view value(n, cch);
+            // The ETW payload's character count includes the null terminator; exclude
+            // it so the view holds exactly the string.
+            if (!value.empty() && value.back() == '\0')
+            {
+                value.remove_suffix(1);
+            }
+            return value;
         }
 
         std::wstring_view ReadNullTerminatedUnicodeString()
@@ -311,11 +317,6 @@ namespace DirectX::Etw
 
         uint8_t* Read(size_t numBytes)
         {
-            // Validate against the bytes actually remaining. Computing
-            // m_remainingUserData + numBytes and comparing that pointer would
-            // overflow the pointer (undefined behaviour) for a large, event-
-            // controlled numBytes and could wrap back below m_userDataEnd,
-            // silently passing this check and returning an out-of-bounds buffer.
             if (numBytes > static_cast<size_t>(m_userDataEnd - m_remainingUserData))
                 Errors::ThrowToolException(E_UNEXPECTED);
 

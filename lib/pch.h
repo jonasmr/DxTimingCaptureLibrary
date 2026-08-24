@@ -18,7 +18,7 @@
 #include <vector>
 
 #include <external/d3d/d3d12.h>
-#include <D3D12Events.h>
+#include <external/d3d/D3D12Events.h>
 
 #include <Windows.h>
 #include <initguid.h>
@@ -38,8 +38,4 @@ using DirectX::Etw::Errors::ThrowIf;
 
 #include <DxEtwLibrary/EtwDispatcher.h>
 
-// The library's implementation files use the DirectX::Etw types unqualified.
-// This directive is intentionally confined to the library build (not the public
-// headers) so it does not leak into consumers that have their own colliding
-// names (e.g. PIX's global ApiObjectType).
 using namespace DirectX::Etw;

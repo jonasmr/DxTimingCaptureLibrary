@@ -3,25 +3,15 @@
 
 #pragma once
 
-// Minimal vendored subset of the PIX ETW manifest (PIXETW.man, shipped with
-// WinPixEventRuntime). The full provider header (PixEtw.h) is generated from
-// that manifest by the message compiler and pulls in the whole PIX provider;
-// the library only needs the provider GUID and the handful of event IDs it
-// dispatches, so they are reproduced here to avoid a build dependency on PIX.
-//
-// Keep these values in sync with PIXETW.man:
-//   windows/WinPixEventRuntime/runtime/lib/PIXETW.man
+// Minimal subset of the PIX ETW manifest (PIXETW.man, shipped with WinPixEventRuntime). 
+// Keep these values in sync with PIXETW.man.
 
 #include <guiddef.h> // GUID
 #include <minwindef.h> // USHORT
 
 namespace DirectX::Etw
 {
-    // These mirror symbols from PIX's generated PixEtw.h. They live in a nested
-    // namespace so that a consumer that opens the library namespace with
-    // `using namespace DirectX::Etw` does not pull them into scope, where they
-    // would collide with the identically named symbols from the real PixEtw.h
-    // if that consumer also includes it (for example PIX itself).
+    // These mirror symbols from PIX's generated PixEtw.h, in a separate namespace to avoid collisions.
     namespace PixEtw
     {
         // provider symbol="PIX_ETW_PROVIDER_WINDOWS"
