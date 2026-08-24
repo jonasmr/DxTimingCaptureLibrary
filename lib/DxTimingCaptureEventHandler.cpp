@@ -16,12 +16,12 @@
 #include "AdapterTracker.h"
 #include "MonitorTracker.h"
 
-#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h>
 #include <DxTimingCaptureLibrary/QpcTimestampConverter.h>
 
 #include "PerProcessData.h"
 
-#include "DxEtwProcessor.h"
+#include "DxTimingCaptureProcessor.h"
 
 #ifndef UsePixUtility
 // <evntrace.h> declares EventTraceConfigGuid but only defines it when INITGUID
@@ -37,32 +37,32 @@ EXTERN_C __declspec(selectany) const GUID EventTraceConfigGuid =
 namespace DirectX::Etw
 {
 
-std::unique_ptr<DxEtwEventHandler> DxEtwEventHandler::Create(
+std::unique_ptr<DxTimingCaptureEventHandler> DxTimingCaptureEventHandler::Create(
     DWORD filterToProcessId,
     const DxTimingCaptureLibraryOptions& libraryOptions,
-    const DxEtwEventCallbacks& callbacks)
+    const DxTimingCaptureEventCallbacks& callbacks)
 {
-    return std::make_unique<DxEtwEventHandler>(filterToProcessId, libraryOptions, callbacks, PixEventConfig{}, nullptr);
+    return std::make_unique<DxTimingCaptureEventHandler>(filterToProcessId, libraryOptions, callbacks, PixEventConfig{}, nullptr);
 }
 
-std::unique_ptr<DxEtwEventHandler> DxEtwEventHandler::Create(
+std::unique_ptr<DxTimingCaptureEventHandler> DxTimingCaptureEventHandler::Create(
     DWORD filterToProcessId,
     const DxTimingCaptureLibraryOptions& libraryOptions,
-    const DxEtwEventCallbacks& callbacks,
+    const DxTimingCaptureEventCallbacks& callbacks,
     const TimestampConverter& timestampConverter,
     const PixEventConfig& pixEventConfig)
 {
-    return std::make_unique<DxEtwEventHandler>(filterToProcessId, libraryOptions, callbacks, pixEventConfig, &timestampConverter);
+    return std::make_unique<DxTimingCaptureEventHandler>(filterToProcessId, libraryOptions, callbacks, pixEventConfig, &timestampConverter);
 }
 
-DxEtwEventHandler::DxEtwEventHandler(
+DxTimingCaptureEventHandler::DxTimingCaptureEventHandler(
     DWORD filterToProcessId,
     const DxTimingCaptureLibraryOptions& libraryOptions,
-    const DxEtwEventCallbacks& callbacks,
+    const DxTimingCaptureEventCallbacks& callbacks,
     const PixEventConfig& pixEventConfig,
     const TimestampConverter* timestampConverter)
     : m_ownedTimestampConverter(timestampConverter ? nullptr : std::make_unique<QpcTimestampConverter>(QpcTimestampConverter::ForCurrentMachine()))
-    , m_processor(std::make_unique<DxEtwProcessor>(
+    , m_processor(std::make_unique<DxTimingCaptureProcessor>(
         libraryOptions,
         pixEventConfig.MirrorGpuContextEventsToCpu,
         callbacks.ApiObjectCallbacks,
@@ -79,14 +79,14 @@ DxEtwEventHandler::DxEtwEventHandler(
         callbacks.RuntimeFailureCallbacks,
         timestampConverter ? timestampConverter : m_ownedTimestampConverter.get(),
         filterToProcessId))
-    , m_dispatcher(std::make_unique<EtwDispatcher<DxEtwProcessor>>(m_processor.get()))
+    , m_dispatcher(std::make_unique<EtwDispatcher<DxTimingCaptureProcessor>>(m_processor.get()))
     , m_options(libraryOptions)
     , m_mirrorGpuContextEventsToCpu(pixEventConfig.MirrorGpuContextEventsToCpu)
     , m_filterToProcessId(filterToProcessId)
 {
 }
 
-void DxEtwEventHandler::HandleEventRecord(PEVENT_RECORD record)
+void DxTimingCaptureEventHandler::HandleEventRecord(PEVENT_RECORD record)
 {
     if (record->EventHeader.ProviderId == PixEtw::PIX_ETW_PROVIDER_WINDOWS ||
         record->EventHeader.ProviderId == Direct3D12EtwProviderGuid ||
@@ -99,12 +99,12 @@ void DxEtwEventHandler::HandleEventRecord(PEVENT_RECORD record)
     return;
 }
 
-void DxEtwEventHandler::OnDataComplete()
+void DxTimingCaptureEventHandler::OnDataComplete()
 {
     m_processor->OnComplete();
 }
 
-void DxEtwEventHandler::ReportTraceStatistics(const EVENT_TRACE_LOGFILE& logfile)
+void DxTimingCaptureEventHandler::ReportTraceStatistics(const EVENT_TRACE_LOGFILE& logfile)
 {
     m_processor->ReportTraceStatistics(logfile);
 }

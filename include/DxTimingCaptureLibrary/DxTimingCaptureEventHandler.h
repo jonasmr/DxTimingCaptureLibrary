@@ -12,12 +12,12 @@
 namespace DirectX::Etw
 {
 
-class DxEtwProcessor;
+class DxTimingCaptureProcessor;
 
-// DxEtwEventCallbacks: callbacks you implement. The library will dispatch to your callbacks when relevant
+// DxTimingCaptureEventCallbacks: callbacks you implement. The library will dispatch to your callbacks when relevant
 // events occur. Leaving a callback as nullptr is fine - the library will replace it with a barebones impl.
 // Supplied callbacks must outlive the handler. One object could implement multiple callbacks.
-struct DxEtwEventCallbacks
+struct DxTimingCaptureEventCallbacks
 {
     ApiObjectCallbacks* ApiObjectCallbacks = nullptr;
     PixCounterCallbacks* PixCounterCallbacks = nullptr;
@@ -34,7 +34,7 @@ struct DxEtwEventCallbacks
 };
 
 // Filters to help make the ETW processing code a bit more efficient. Try to make these match the callbacks
-// you set in DxEtwEventCallbacks, but setting them to true will give you maximal data.
+// you set in DxTimingCaptureEventCallbacks, but setting them to true will give you maximal data.
 struct DxTimingCaptureLibraryOptions
 {
     // Track D3D12 API-object lifetimes (resources, heaps, command queues,
@@ -91,40 +91,40 @@ struct PixEventConfig
     bool MirrorGpuContextEventsToCpu = false;
 };
 
-// DxEtwEventHandler: the object you create to handle ETW events. You own the ETW
+// DxTimingCaptureEventHandler: the object you create to handle ETW events. You own the ETW
 // session and feed it records; the handler decodes them and dispatches to your callbacks.
-class DxEtwEventHandler
+class DxTimingCaptureEventHandler
 {
     std::unique_ptr<TimestampConverter> m_ownedTimestampConverter;
-    std::unique_ptr<DxEtwProcessor> m_processor;
-    std::unique_ptr<EtwDispatcher<DxEtwProcessor>> m_dispatcher;
+    std::unique_ptr<DxTimingCaptureProcessor> m_processor;
+    std::unique_ptr<EtwDispatcher<DxTimingCaptureProcessor>> m_dispatcher;
 
     DxTimingCaptureLibraryOptions m_options;
     bool m_mirrorGpuContextEventsToCpu;
     DWORD m_filterToProcessId;
 
 public:
-    static std::unique_ptr<DxEtwEventHandler> Create(
+    static std::unique_ptr<DxTimingCaptureEventHandler> Create(
         DWORD filterToProcessId,
         const DxTimingCaptureLibraryOptions& libraryOptions,
-        const DxEtwEventCallbacks& callbacks);
+        const DxTimingCaptureEventCallbacks& callbacks);
 
-    static std::unique_ptr<DxEtwEventHandler> Create(
+    static std::unique_ptr<DxTimingCaptureEventHandler> Create(
         DWORD filterToProcessId,
         const DxTimingCaptureLibraryOptions& libraryOptions,
-        const DxEtwEventCallbacks& callbacks,
+        const DxTimingCaptureEventCallbacks& callbacks,
         const TimestampConverter& timestampConverter,
         const PixEventConfig& pixEventConfig = {});
 
     // Prefer to use Create() but using the constructor will work.
-    DxEtwEventHandler(
+    DxTimingCaptureEventHandler(
         DWORD filterToProcessId,
         const DxTimingCaptureLibraryOptions& libraryOptions,
-        const DxEtwEventCallbacks& callbacks,
+        const DxTimingCaptureEventCallbacks& callbacks,
         const PixEventConfig& pixEventConfig,
         const TimestampConverter* timestampConverter);
 
-    virtual ~DxEtwEventHandler() = default;
+    virtual ~DxTimingCaptureEventHandler() = default;
 
     // Decodes and correlates one ETW event record, invoking the relevant
     // callbacks. Call it from your consumer's EventRecordCallback for every

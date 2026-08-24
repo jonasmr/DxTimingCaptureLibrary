@@ -6,7 +6,7 @@
 // The no-op callback bases are part of the public surface. Tests use the shipped
 // header so they exercise exactly what consumers get.
 #include <DxTimingCaptureLibrary/NoOpCallbacks.h>
-#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h>
 
 using namespace DirectX::Etw;
 

@@ -10,7 +10,7 @@
 #include <external/d3d/d3d12.h>
 #include <external/d3d/D3D12Events.h>
 
-#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h>
 #include <DxTimingCaptureLibrary/EtwDispatcher.h>
 
 using namespace DirectX::Etw;
@@ -91,7 +91,7 @@ namespace
         return payload;
     }
 
-    void Dispatch(DxEtwEventHandler& handler, uint16_t eventId, uint64_t timestamp, std::vector<uint8_t>& payload)
+    void Dispatch(DxTimingCaptureEventHandler& handler, uint16_t eventId, uint64_t timestamp, std::vector<uint8_t>& payload)
     {
         EVENT_RECORD record{};
         record.EventHeader.ProviderId = DxgkControlGuid;
@@ -107,18 +107,18 @@ namespace
     constexpr uint16_t DmaSubmitEventId = 175;
     constexpr uint16_t DmaIsrCompleteEventId = 177;
 
-    std::unique_ptr<DxEtwEventHandler> CreateHandler(
+    std::unique_ptr<DxTimingCaptureEventHandler> CreateHandler(
         RecordingGpuEngineActivityCallbacks& gpuEngineActivity,
         NoOpTimestampConverter& converter,
         bool TrackGpuEngineActivity)
     {
-        DxEtwEventCallbacks callbacks{};
+        DxTimingCaptureEventCallbacks callbacks{};
         callbacks.GpuEngineActivityCallbacks = &gpuEngineActivity;
 
         DxTimingCaptureLibraryOptions options{};
         options.TrackGpuEngineActivity = TrackGpuEngineActivity;
 
-        return DxEtwEventHandler::Create(1234u, options, callbacks, converter);
+        return DxTimingCaptureEventHandler::Create(1234u, options, callbacks, converter);
     }
 }
 

@@ -10,7 +10,7 @@
 #include <thread>
 #include <vector>
 
-#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h>
 #include "EtwSession.h"
 #include "GpuWorkload.h"
 

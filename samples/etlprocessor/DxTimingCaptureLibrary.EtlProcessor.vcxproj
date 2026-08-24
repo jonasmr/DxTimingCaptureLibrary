@@ -58,10 +58,10 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <!-- Standalone (GitHub) builds pull the DirectStorage headers that EtwDispatcher.h
        needs from a NuGet package; the in-PIX build resolves them from the source tree. -->
-  <ItemGroup Condition="'$(DxEtwStandaloneBuild)' == 'true'">
+  <ItemGroup Condition="'$(DxTimingCaptureStandaloneBuild)' == 'true'">
     <PackageReference Include="Microsoft.Direct3D.DirectStorage" Version="1.3.0" GeneratePathProperty="true" PrivateAssets="all" />
   </ItemGroup>
-  <PropertyGroup Condition="'$(DxEtwStandaloneBuild)' == 'true' and '$(DirectStorageSdk)' == ''">
+  <PropertyGroup Condition="'$(DxTimingCaptureStandaloneBuild)' == 'true' and '$(DirectStorageSdk)' == ''">
     <DirectStorageSdk>$(PkgMicrosoft_Direct3D_DirectStorage)</DirectStorageSdk>
   </PropertyGroup>
   <Import Project="$(DirectStorageSdk)\build\native\targets\Microsoft.Direct3D.DirectStorage.targets" Condition="Exists('$(DirectStorageSdk)\build\native\targets\Microsoft.Direct3D.DirectStorage.targets')" />

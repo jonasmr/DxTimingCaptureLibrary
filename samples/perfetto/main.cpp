@@ -3,7 +3,7 @@
 //
 // Like the printf sample, this listens for D3D12 / DXGK ETW events for a target
 // process; instead of printing them it writes them into a Perfetto trace
-// (dxetw.perfetto-trace) that opens directly in https://ui.perfetto.dev.
+// (dxtimingcapture.perfetto-trace) that opens directly in https://ui.perfetto.dev.
 
 #include "pch.h"
 
@@ -65,7 +65,7 @@ static std::wstring g_etlFilePath; // when non-empty, consume this .etl offline 
 static std::atomic<bool> g_running(true);
 static TRACEHANDLE g_sessionHandle = 0;
 
-std::unique_ptr<DxEtwEventHandler> g_dxEtwEventHandler;
+std::unique_ptr<DxTimingCaptureEventHandler> g_dxTimingCaptureEventHandler;
 
 void WINAPI OnEvent(EVENT_RECORD* record)
 {
@@ -73,7 +73,7 @@ void WINAPI OnEvent(EVENT_RECORD* record)
     // unwind through ETW, so contain it here (drop the event, keep going).
     try
     {
-        g_dxEtwEventHandler->HandleEventRecord(record);
+        g_dxTimingCaptureEventHandler->HandleEventRecord(record);
     }
     catch (...)
     {
@@ -83,7 +83,7 @@ void WINAPI OnEvent(EVENT_RECORD* record)
 
 ULONG WINAPI OnBuffer(PEVENT_TRACE_LOGFILE logfile)
 {
-    g_dxEtwEventHandler->ReportTraceStatistics(*logfile);
+    g_dxTimingCaptureEventHandler->ReportTraceStatistics(*logfile);
     return TRUE;
 }
 
@@ -120,8 +120,8 @@ static void ConsumerThread()
     if (status != ERROR_SUCCESS)
         printf("ProcessTrace failed: %lu\n", status);
 
-    g_dxEtwEventHandler->OnDataComplete(); // flush pending correlation
-    g_dxEtwEventHandler->ReportTraceStatistics(trace);
+    g_dxTimingCaptureEventHandler->OnDataComplete(); // flush pending correlation
+    g_dxTimingCaptureEventHandler->ReportTraceStatistics(trace);
 
     CloseTrace(traceHandle);
 }
@@ -220,25 +220,25 @@ int __cdecl wmain(int argc, wchar_t** argv)
     if (offline)
     {
         if (targetProcessId)
-            wprintf(L"Reading %ls, filtering to process %lu (%hs), writing dxetw.perfetto-trace\n",
+            wprintf(L"Reading %ls, filtering to process %lu (%hs), writing dxtimingcapture.perfetto-trace\n",
                     etlPath.c_str(), *targetProcessId, categories.c_str());
         else
-            wprintf(L"Reading %ls, all processes (%hs), writing dxetw.perfetto-trace\n",
+            wprintf(L"Reading %ls, all processes (%hs), writing dxtimingcapture.perfetto-trace\n",
                     etlPath.c_str(), categories.c_str());
     }
     else if (targetProcessId)
     {
-        printf("Observing process %lu (%s), writing dxetw.perfetto-trace\n",
+        printf("Observing process %lu (%s), writing dxtimingcapture.perfetto-trace\n",
                *targetProcessId, categories.c_str());
     }
     else
     {
-        printf("Observing all processes (%s), writing dxetw.perfetto-trace\n", categories.c_str());
+        printf("Observing all processes (%s), writing dxtimingcapture.perfetto-trace\n", categories.c_str());
     }
 
     g_etwSessionName = L"DxTimingCaptureLibrary.sample.perfetto.session" + std::to_wstring(GetCurrentProcessId());
 
-    auto writer = std::make_unique<PerfettoTraceWriter>("dxetw.perfetto-trace", captureAllCategories);
+    auto writer = std::make_unique<PerfettoTraceWriter>("dxtimingcapture.perfetto-trace", captureAllCategories);
     if (targetProcessId)
     {
         writer->MarkProcessDetailed(*targetProcessId);
@@ -257,7 +257,7 @@ int __cdecl wmain(int argc, wchar_t** argv)
     PerfettoPipelineStateEventCallbacks pipelineStateEventCallbacks(*writer);
     PerfettoGpuEngineActivityCallbacks gpuEngineActivityCallbacks(*writer);
 
-    DxEtwEventCallbacks callbacks;
+    DxTimingCaptureEventCallbacks callbacks;
     callbacks.ApiObjectCallbacks = &apiObjectCallbacks;
     callbacks.GpuTimingsCallbacks = &gpuTimingsCallbacks;
     callbacks.DxgkObjectCallbacks = &dxgkObjectCallbacks;
@@ -267,7 +267,7 @@ int __cdecl wmain(int argc, wchar_t** argv)
     CountingDiagnosticsSink diagnosticsSink;
     callbacks.DiagnosticsSink = &diagnosticsSink;
 
-    g_dxEtwEventHandler = DxEtwEventHandler::Create(targetProcessId.value_or(0), libraryOptions, callbacks, timestampConverter);
+    g_dxTimingCaptureEventHandler = DxTimingCaptureEventHandler::Create(targetProcessId.value_or(0), libraryOptions, callbacks, timestampConverter);
 
     if (offline)
     {

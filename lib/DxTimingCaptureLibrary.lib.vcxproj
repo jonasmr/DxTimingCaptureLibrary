@@ -31,13 +31,13 @@
     </ClCompile>
     <ClCompile Include="AllocationTracker.cpp" />
     <ClCompile Include="D3D12ObjectProcessor.cpp" />
-    <ClCompile Include="DxEtwEventHandler.cpp" />
+    <ClCompile Include="DxTimingCaptureEventHandler.cpp" />
     <ClCompile Include="PixEventDecoderStub.cpp" Condition="'$(UseStubPixEventDecoder)' == 'true'" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AdapterTracker.h" />
     <ClInclude Include="DirectStorageProcessor.h" />
-    <ClInclude Include="DxEtwProcessor.h" />
+    <ClInclude Include="DxTimingCaptureProcessor.h" />
     <ClInclude Include="Identifiers.h" />
     <ClInclude Include="MemoryCounterWriter.h" />
     <ClInclude Include="MonitorTracker.h" />

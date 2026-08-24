@@ -32,13 +32,13 @@ The library surfaces, through consumer-supplied callbacks:
 your ETW session  ─►  ProcessTrace  ─►  EventRecordCallback
                                               │  (your code calls)
                                               ▼
-                              DxEtwEventHandler::HandleEventRecord
+                              DxTimingCaptureEventHandler::HandleEventRecord
                                               │
                                               ▼
                           EtwDispatcher  (per-provider decode)
                                               │
                                               ▼
-                              DxEtwProcessor  (correlation)
+                              DxTimingCaptureProcessor  (correlation)
                                               │
                                               ▼
                                    your callback interfaces
@@ -51,8 +51,8 @@ ignored.
 
 ## The construction contract
 
-You construct a single `DxEtwEventHandler` (see
-[`include/DxTimingCaptureLibrary/DxEtwEventHandler.h`](include/DxTimingCaptureLibrary/DxEtwEventHandler.h)),
+You construct a single `DxTimingCaptureEventHandler` (see
+[`include/DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h`](include/DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h)),
 supplying:
 
 - **Eight callback interfaces** (all required, see
@@ -109,7 +109,7 @@ class MyClock : public NoOpTimestampConverter { /* real conversion here */ };
 DirectX::Etw::Options options{};
 options.CaptureGpuMemoryUsage = true;
 
-auto handler = std::make_unique<DxEtwEventHandler>(
+auto handler = std::make_unique<DxTimingCaptureEventHandler>(
     options,
     /*gpuOnlyEvents*/ true,
     std::make_unique<MyApiObjects>(),

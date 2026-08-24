@@ -10,12 +10,12 @@
 #include <string_view>
 #include <vector>
 
-#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h>
 
 // The vendored DirectStorage event descriptors and payload layouts are used here to
 // synthesize the raw ETW records the handler decodes. This is exactly what a live
 // DirectStorage trace would deliver, so feeding these through a real
-// DxEtwEventHandler exercises the full decode + correlation path end to end.
+// DxTimingCaptureEventHandler exercises the full decode + correlation path end to end.
 #include <external/DirectStorage/dstorage_etw.h>
 
 #include "NoOpCallbacks.h"
@@ -175,7 +175,7 @@ namespace
     };
 
     // Builds a DirectStorage workload as a list of raw ETW records, then replays it
-    // through a real DxEtwEventHandler and exposes the recorded callbacks. Timestamps
+    // through a real DxTimingCaptureEventHandler and exposes the recorded callbacks. Timestamps
     // are assigned by the caller so the tests can assert exact enqueue/completion values;
     // the handler is given an identity timestamp converter (NoOpTimestampConverter).
     class DirectStorageFixture
@@ -185,7 +185,7 @@ namespace
         NoOpTimestampConverter m_converter;
         RecordingDirectStorageCallbacks m_callbacks;
 
-        std::unique_ptr<DxEtwEventHandler> m_handler;
+        std::unique_ptr<DxTimingCaptureEventHandler> m_handler;
 
     public:
         // Valid before and after Run(); set the callbacks' failure-injection fields on it
@@ -333,13 +333,13 @@ namespace
         // fixture's lifetime so it (and the callbacks it owns) outlive the assertions.
         void Run()
         {
-            DxEtwEventCallbacks callbacks;
+            DxTimingCaptureEventCallbacks callbacks;
             callbacks.DirectStorageCallbacks = &m_callbacks;
 
             PixEventConfig pixEventConfig;
             pixEventConfig.MirrorGpuContextEventsToCpu = true;
 
-            m_handler = DxEtwEventHandler::Create(AnyProcessId, {}, callbacks, m_converter, pixEventConfig);
+            m_handler = DxTimingCaptureEventHandler::Create(AnyProcessId, {}, callbacks, m_converter, pixEventConfig);
 
             for (auto& record : m_records)
             {

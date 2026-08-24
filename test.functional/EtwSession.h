@@ -13,7 +13,7 @@
 // under clang-cl (clang's STL eagerly instantiates the deleter, which requires a complete type).
 #include <DxTimingCaptureLibrary/EtwCallbacks.h>
 #include <DxTimingCaptureLibrary/EtwDiagnostics.h>
-#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h>
 
 using namespace DirectX::Etw;
 
@@ -30,7 +30,7 @@ struct SessionDiagnostic
 
 // Drives a real-time ETW session end to end for the functional tests: it starts a
 // trace, enables the D3D12 and DXGK providers, pumps event records into a
-// DxEtwEventHandler on a consumer thread, and (on End) flushes deferred entries and
+// DxTimingCaptureEventHandler on a consumer thread, and (on End) flushes deferred entries and
 // records ETW data-loss totals. State is per-instance (no globals), so each test owns
 // an isolated session.
 class SimpleEtwSession : public DiagnosticsSink
@@ -47,7 +47,7 @@ class SimpleEtwSession : public DiagnosticsSink
     std::unique_ptr<GpuEngineActivityCallbacks> m_gpuEngineActivityCallbacks;
     std::unique_ptr<DirectStorageCallbacks> m_directStorageCallbacks;
 
-    std::unique_ptr<DxEtwEventHandler> m_handler;
+    std::unique_ptr<DxTimingCaptureEventHandler> m_handler;
 
     std::exception_ptr m_consumerException;
     std::vector<SessionDiagnostic> m_diagnostics;

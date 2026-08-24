@@ -120,19 +120,19 @@ struct PerfettoTraceWriter::Impl
     {
         auto track = Track(trackLabel, trackId);
         if (flowId)
-            TRACE_EVENT_BEGIN("dxetw", perfetto::DynamicString{ sliceLabel.c_str() }, track, begin, perfetto::Flow::ProcessScoped(flowId));
+            TRACE_EVENT_BEGIN("dxtimingcapture", perfetto::DynamicString{ sliceLabel.c_str() }, track, begin, perfetto::Flow::ProcessScoped(flowId));
         else
-            TRACE_EVENT_BEGIN("dxetw", perfetto::DynamicString{ sliceLabel.c_str() }, track, begin);
-        TRACE_EVENT_END("dxetw", track, end);
+            TRACE_EVENT_BEGIN("dxtimingcapture", perfetto::DynamicString{ sliceLabel.c_str() }, track, begin);
+        TRACE_EVENT_END("dxtimingcapture", track, end);
     }
 
     void Instant(uint64_t trackId, const std::string& trackLabel, const std::string& name, uint64_t ts, uint64_t flowId = 0)
     {
         auto track = Track(trackLabel, trackId);
         if (flowId)
-            TRACE_EVENT_INSTANT("dxetw", perfetto::DynamicString{ name.c_str() }, track, ts, perfetto::Flow::ProcessScoped(flowId));
+            TRACE_EVENT_INSTANT("dxtimingcapture", perfetto::DynamicString{ name.c_str() }, track, ts, perfetto::Flow::ProcessScoped(flowId));
         else
-            TRACE_EVENT_INSTANT("dxetw", perfetto::DynamicString{ name.c_str() }, track, ts);
+            TRACE_EVENT_INSTANT("dxtimingcapture", perfetto::DynamicString{ name.c_str() }, track, ts);
     }
 
     // Picks a lane on trackKey's track that is free at beginNs, or nullopt once the
@@ -190,10 +190,10 @@ struct PerfettoTraceWriter::Impl
         uint64_t begin = ToPft(beginNs);
         uint64_t end = ToPft(endNs);
         if (flowId)
-            TRACE_EVENT_BEGIN("dxetw", perfetto::DynamicString{ sliceLabel.c_str() }, *laneTrack, begin, perfetto::Flow::ProcessScoped(flowId));
+            TRACE_EVENT_BEGIN("dxtimingcapture", perfetto::DynamicString{ sliceLabel.c_str() }, *laneTrack, begin, perfetto::Flow::ProcessScoped(flowId));
         else
-            TRACE_EVENT_BEGIN("dxetw", perfetto::DynamicString{ sliceLabel.c_str() }, *laneTrack, begin);
-        TRACE_EVENT_END("dxetw", *laneTrack, end);
+            TRACE_EVENT_BEGIN("dxtimingcapture", perfetto::DynamicString{ sliceLabel.c_str() }, *laneTrack, begin);
+        TRACE_EVENT_END("dxtimingcapture", *laneTrack, end);
     }
 
     // hwQueueId is 0 when the library could not work out which engine ran a packet.
@@ -321,7 +321,7 @@ PerfettoTraceWriter::PerfettoTraceWriter(std::string outputPath, bool captureAll
     auto* ds = cfg.add_data_sources()->mutable_config();
     ds->set_name("track_event");
     perfetto::protos::gen::TrackEventConfig te;
-    te.add_enabled_categories("dxetw");
+    te.add_enabled_categories("dxtimingcapture");
     // Our events carry their own (out-of-order) timestamps from ETW. Absolute
     // timestamps let the trace processor sort them; the default incremental
     // (delta) encoding would abort on a timestamp that moves backwards.
@@ -404,13 +404,13 @@ void PerfettoTraceWriter::EmitOtherProcessGpuWork(uint32_t processId, uint64_t h
         return;
 
     TRACE_EVENT_BEGIN(
-        "dxetw",
+        "dxtimingcapture",
         perfetto::DynamicString{ sliceLabel.c_str() },
         *laneTrack,
         m_impl->ToPft(beginNs),
         "pid", processId,
         "scheduler", hardwareScheduled ? "hardware" : "legacy");
-    TRACE_EVENT_END("dxetw", *laneTrack, m_impl->ToPft(endNs));
+    TRACE_EVENT_END("dxtimingcapture", *laneTrack, m_impl->ToPft(endNs));
 }
 
 void PerfettoTraceWriter::RegisterApiMarker(uint64_t apiMarkerId, const wchar_t* name, int64_t ts)

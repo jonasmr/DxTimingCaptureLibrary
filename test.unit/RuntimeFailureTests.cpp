@@ -14,14 +14,14 @@
 #include <external/d3d/d3d12.h>
 #include <external/d3d/D3D12Events.h>
 
-#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h>
 
 using namespace DirectX::Etw;
 
 #include "NoOpCallbacks.h"
 
 // These tests drive the runtime-failure path end to end: a synthetic
-// EventD3D12JournalEntry record is pushed through DxEtwEventHandler (dispatch +
+// EventD3D12JournalEntry record is pushed through DxTimingCaptureEventHandler (dispatch +
 // decode + processor) and the decoded RuntimeFailureCallbacks call is asserted.
 // The journal event is the D3D12 runtime's failure-breadcrumb stream - e.g. a
 // command list removed because a recording-time call such as CopyBufferRegion was
@@ -104,7 +104,7 @@ namespace
         EVENT_RECORD* Get() { return &record; }
     };
 
-    // Wires a DxEtwEventHandler with no-op callbacks for every required category and
+    // Wires a DxTimingCaptureEventHandler with no-op callbacks for every required category and
     // an optional recording RuntimeFailureCallbacks. When withFailureCallback is
     // false the optional slot is null, exercising the "journal entries ignored" path.
     struct HandlerFixture
@@ -113,11 +113,11 @@ namespace
         RecordingRuntimeFailureCallbacks RecordingStorage;
 
         RecordingRuntimeFailureCallbacks* Recording = nullptr;
-        std::unique_ptr<DxEtwEventHandler> Handler;
+        std::unique_ptr<DxTimingCaptureEventHandler> Handler;
 
         explicit HandlerFixture(bool withFailureCallback = true)
         {
-            DxEtwEventCallbacks callbacks;
+            DxTimingCaptureEventCallbacks callbacks;
 
             if (withFailureCallback)
             {
@@ -125,7 +125,7 @@ namespace
                 callbacks.RuntimeFailureCallbacks = &RecordingStorage;
             }
 
-            Handler = DxEtwEventHandler::Create(TargetProcessId, {}, callbacks, Converter);
+            Handler = DxTimingCaptureEventHandler::Create(TargetProcessId, {}, callbacks, Converter);
         }
     };
 }

@@ -15,7 +15,7 @@
 #include <DxTimingCaptureLibrary/TicksToNanoseconds.h>
 #include <DxTimingCaptureLibrary/GpuTimingData.h>
 
-#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h>
 
 using namespace DirectX::Etw;
 
@@ -42,11 +42,11 @@ namespace
         }
     };
 
-    std::unique_ptr<DxEtwEventHandler> MakeHandler(TimestampConverter& converter, DiagnosticsSink* sink)
+    std::unique_ptr<DxTimingCaptureEventHandler> MakeHandler(TimestampConverter& converter, DiagnosticsSink* sink)
     {
-        DxEtwEventCallbacks callbacks;
+        DxTimingCaptureEventCallbacks callbacks;
         callbacks.DiagnosticsSink = sink;
-        return DxEtwEventHandler::Create(1234u, {}, callbacks, converter);
+        return DxTimingCaptureEventHandler::Create(1234u, {}, callbacks, converter);
     }
 
     EVENT_TRACE_LOGFILE MakeLogfile(ULONG eventsLost, ULONG buffersLost)

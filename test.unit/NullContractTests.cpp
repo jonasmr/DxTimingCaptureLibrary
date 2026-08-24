@@ -10,7 +10,7 @@
 #include <external/d3d/d3d12.h>
 #include <external/d3d/D3D12Events.h>
 
-#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h>
 
 using namespace DirectX::Etw;
 
@@ -18,7 +18,7 @@ using namespace DirectX::Etw;
 
 namespace
 {
-    // Owns a full set of no-op callbacks and hands out a DxEtwEventCallbacks that
+    // Owns a full set of no-op callbacks and hands out a DxTimingCaptureEventCallbacks that
     // borrows them. Keep the instance alive as long as any handler built from Config().
     struct FullCallbacks
     {
@@ -35,9 +35,9 @@ namespace
         NullDiagnosticsSink diagnosticsSink;
         NoOpRuntimeFailureCallbacks runtimeFailure;
 
-        DxEtwEventCallbacks Config()
+        DxTimingCaptureEventCallbacks Config()
         {
-            DxEtwEventCallbacks callbacks;
+            DxTimingCaptureEventCallbacks callbacks;
             callbacks.ApiObjectCallbacks = &apiObject;
             callbacks.PixCounterCallbacks = &pixCounter;
             callbacks.ResidencyEventCallbacks = &residency;
@@ -61,7 +61,7 @@ TEST(ConfigContract, FullyPopulatedSucceeds)
     NoOpTimestampConverter converter;
     FullCallbacks callbacks;
     EXPECT_NO_THROW({
-        auto handler = DxEtwEventHandler::Create(1234u, {}, callbacks.Config(), converter);
+        auto handler = DxTimingCaptureEventHandler::Create(1234u, {}, callbacks.Config(), converter);
         EXPECT_NE(handler, nullptr);
     });
 }
@@ -72,7 +72,7 @@ TEST(ConfigContract, NoConfigSucceeds)
 {
     NoOpTimestampConverter converter;
     EXPECT_NO_THROW({
-        auto handler = DxEtwEventHandler::Create(1234u, {}, {}, converter);
+        auto handler = DxTimingCaptureEventHandler::Create(1234u, {}, {}, converter);
         EXPECT_NE(handler, nullptr);
     });
 }

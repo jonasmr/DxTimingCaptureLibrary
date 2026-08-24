@@ -28,7 +28,7 @@ static DirectStorageCallbacksPrintf g_directStorageCallbacks;
 static DiagnosticsSinkPrintf g_diagnosticsSink;
 static RuntimeFailureCallbacksPrintf g_runtimeFailureCallbacks;
 
-std::unique_ptr<DxEtwEventHandler> g_dxEtwEventHandler;
+std::unique_ptr<DxTimingCaptureEventHandler> g_dxTimingCaptureEventHandler;
 
 void WINAPI OnEvent(EVENT_RECORD* record)
 {
@@ -38,7 +38,7 @@ void WINAPI OnEvent(EVENT_RECORD* record)
     // contain it here: drop the event and keep processing the trace.
     try
     {
-        g_dxEtwEventHandler->HandleEventRecord(record);
+        g_dxTimingCaptureEventHandler->HandleEventRecord(record);
     }
     catch (...)
     {
@@ -51,7 +51,7 @@ void WINAPI OnEvent(EVENT_RECORD* record)
 // handler; it reports any newly observed loss through the diagnostics sink.
 ULONG WINAPI OnBuffer(PEVENT_TRACE_LOGFILE logfile)
 {
-    g_dxEtwEventHandler->ReportTraceStatistics(*logfile);
+    g_dxTimingCaptureEventHandler->ReportTraceStatistics(*logfile);
     return TRUE; // keep processing
 }
 
@@ -85,8 +85,8 @@ static void ConsumerThread()
     }
 
     // Flush any pending correlation before reading the final loss totals.
-    g_dxEtwEventHandler->OnDataComplete();
-    g_dxEtwEventHandler->ReportTraceStatistics(trace);
+    g_dxTimingCaptureEventHandler->OnDataComplete();
+    g_dxTimingCaptureEventHandler->ReportTraceStatistics(trace);
 
     status = CloseTrace(traceHandle);
     if (status != ERROR_SUCCESS)
@@ -132,7 +132,7 @@ int __cdecl main(int argc, char** argv)
     DxTimingCaptureLibraryOptions libraryOptions{};
     libraryOptions.TrackApiObjects = true;
 
-    DxEtwEventCallbacks callbacks;
+    DxTimingCaptureEventCallbacks callbacks;
     callbacks.ApiObjectCallbacks = &g_apiObjectCallbacks;
     callbacks.PixCounterCallbacks = &g_pixCounterCallbacks;
     callbacks.ResidencyEventCallbacks = &g_residencyEventCallbacks;
@@ -145,7 +145,7 @@ int __cdecl main(int argc, char** argv)
     callbacks.DiagnosticsSink = &g_diagnosticsSink;
     callbacks.RuntimeFailureCallbacks = &g_runtimeFailureCallbacks;
 
-    g_dxEtwEventHandler = DxEtwEventHandler::Create(filterToProcessId, libraryOptions, callbacks);
+    g_dxTimingCaptureEventHandler = DxTimingCaptureEventHandler::Create(filterToProcessId, libraryOptions, callbacks);
 
     // Start Trace
     EventTraceProperties properties{};

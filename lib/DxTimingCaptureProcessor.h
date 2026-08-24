@@ -4,7 +4,7 @@
 #pragma once
 
 #include <DxTimingCaptureLibrary/NoOpCallbacks.h>
-#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h>
 #include <DxTimingCaptureLibrary/GpuPacketEvents.h>
 
 #include "DirectStorageProcessor.h"
@@ -12,7 +12,7 @@
 namespace DirectX::Etw
 {
 
-class DxEtwProcessor
+class DxTimingCaptureProcessor
 {
     DxTimingCaptureLibraryOptions m_options;
     bool m_mirrorGpuContextEventsToCpu; // When true, also emit GPU-context begin/end events on the CPU thread that emitted them
@@ -71,7 +71,7 @@ class DxEtwProcessor
     bool m_flushedGpuPackets = false;
 
 public:
-    DxEtwProcessor(
+    DxTimingCaptureProcessor(
         const DxTimingCaptureLibraryOptions& libraryOptions,
         bool mirrorGpuContextEventsToCpu,
         ApiObjectCallbacks* apiObjectCallbacks,
@@ -185,7 +185,7 @@ public:
     }
 
 private:
-    friend class EtwDispatcher<DxEtwProcessor>;
+    friend class EtwDispatcher<DxTimingCaptureProcessor>;
 
     PerProcessData& GetPerProcessData(EVENT_RECORD* record)
     {

@@ -14,7 +14,7 @@ namespace DirectX::Etw
 // you when relevant things are reported via ETW.
 //
 // Threading: all callbacks run synchronously on the thread that calls
-// DxEtwEventHandler::HandleEventRecord/OnDataComplete. The library holds no
+// DxTimingCaptureEventHandler::HandleEventRecord/OnDataComplete. The library holds no
 // locks. Of course, guard any storage shared with other threads yourself.
 // 
 // Methods with an _Out_ id parameter must set it on S_OK to a unique, stable,

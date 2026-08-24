@@ -28,7 +28,7 @@
   <PropertyGroup>
     <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
-    <DxEtwStandaloneBuild Condition="'$(DxEtwStandaloneBuild)' == ''">true</DxEtwStandaloneBuild>
+    <DxTimingCaptureStandaloneBuild Condition="'$(DxTimingCaptureStandaloneBuild)' == ''">true</DxTimingCaptureStandaloneBuild>
   </PropertyGroup>
 
   <PropertyGroup>

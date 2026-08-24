@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <atomic>
 
-#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h>
 #include <external/DirectStorage/dstorage_etw.h>
 
 using namespace DirectX::Etw;
@@ -249,7 +249,7 @@ void SimpleEtwSession::Begin()
     // Only wire up the callbacks a test actually overrides; the library
     // substitutes a no-op for every slot left null. The handler borrows these,
     // so they stay owned by the session (which outlives m_handler).
-    DxEtwEventCallbacks callbacks;
+    DxTimingCaptureEventCallbacks callbacks;
     callbacks.ApiObjectCallbacks = m_apiObjectCallbacks.get();
     callbacks.GpuTimingsCallbacks = m_gpuTimingsCallbacks.get();
     callbacks.GpuEngineActivityCallbacks = m_gpuEngineActivityCallbacks.get();
@@ -257,7 +257,7 @@ void SimpleEtwSession::Begin()
     callbacks.RuntimeFailureCallbacks = m_runtimeFailureCallbacks.get();
     callbacks.DiagnosticsSink = this;
 
-    m_handler = DxEtwEventHandler::Create(GetCurrentProcessId(), libraryOptions, callbacks);
+    m_handler = DxTimingCaptureEventHandler::Create(GetCurrentProcessId(), libraryOptions, callbacks);
 
     EventTraceProperties properties;
     TRACEHANDLE sessionHandle = 0;

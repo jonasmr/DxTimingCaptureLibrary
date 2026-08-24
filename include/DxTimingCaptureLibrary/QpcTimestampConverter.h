@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h>
 #include <DxTimingCaptureLibrary/TicksToNanoseconds.h>
 
 namespace DirectX::Etw

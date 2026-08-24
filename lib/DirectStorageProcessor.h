@@ -9,15 +9,15 @@
 
 #include <external/DirectStorage/dstorage_etw.h>
 #include <DxTimingCaptureLibrary/EtwCallbacks.h>
-#include <DxTimingCaptureLibrary/DxEtwEventHandler.h> // TimestampConverter
+#include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h> // TimestampConverter
 
 namespace DirectX::Etw
 {
 
 // Decodes and correlates the DirectStorage ETW provider's events and reports the
 // result through DirectStorageCallbacks. This is the DirectStorage counterpart to the
-// D3D12/DXGK/PIX decoding in DxEtwProcessor: it owns the enqueue -> completion
-// correlation and hands the consumer fully-formed operations. DxEtwProcessor composes
+// D3D12/DXGK/PIX decoding in DxTimingCaptureProcessor: it owns the enqueue -> completion
+// correlation and hands the consumer fully-formed operations. DxTimingCaptureProcessor composes
 // one of these and the shared DirectX::Etw::EtwDispatcher routes DirectStorage events
 // to it, so a single handler decodes D3D12/DXGK/PIX and DirectStorage together.
 //
@@ -65,7 +65,7 @@ class DirectStorageProcessor
 
 public:
     // timestampConverter and callbacks are both required and are owned by the
-    // enclosing DxEtwEventHandler for the lifetime of this processor.
+    // enclosing DxTimingCaptureEventHandler for the lifetime of this processor.
     DirectStorageProcessor(DirectStorageCallbacks* callbacks, const TimestampConverter* timestampConverter)
         : m_callbacks(callbacks)
         , m_timestampConverter(timestampConverter)

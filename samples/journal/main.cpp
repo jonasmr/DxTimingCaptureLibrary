@@ -33,7 +33,7 @@ namespace
     };
 
     ConsoleRuntimeFailureCallbacks g_runtimeFailureCallbacks;
-    std::unique_ptr<DxEtwEventHandler> g_dxEtwEventHandler;
+    std::unique_ptr<DxTimingCaptureEventHandler> g_dxTimingCaptureEventHandler;
 
     void WINAPI OnEvent(EVENT_RECORD* record)
     {
@@ -41,7 +41,7 @@ namespace
         // an exception unwind is undefined behaviour. Drop the event and keep going.
         try
         {
-            g_dxEtwEventHandler->HandleEventRecord(record);
+            g_dxTimingCaptureEventHandler->HandleEventRecord(record);
         }
         catch (...)
         {
@@ -68,7 +68,7 @@ namespace
         }
 
         ProcessTrace(&traceHandle, 1, nullptr, nullptr); // blocks until the session stops
-        g_dxEtwEventHandler->OnDataComplete();
+        g_dxTimingCaptureEventHandler->OnDataComplete();
         CloseTrace(traceHandle);
     }
 
@@ -106,10 +106,10 @@ int __cdecl main()
 
     DxTimingCaptureLibraryOptions libraryOptions{};
 
-    DxEtwEventCallbacks callbacks;
+    DxTimingCaptureEventCallbacks callbacks;
     callbacks.RuntimeFailureCallbacks = &g_runtimeFailureCallbacks;
 
-    g_dxEtwEventHandler = DxEtwEventHandler::Create(processId, libraryOptions, callbacks);
+    g_dxTimingCaptureEventHandler = DxTimingCaptureEventHandler::Create(processId, libraryOptions, callbacks);
 
     EventTraceProperties properties{};
     TRACEHANDLE sessionHandle = 0;

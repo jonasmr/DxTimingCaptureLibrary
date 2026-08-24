@@ -33,7 +33,7 @@ namespace
     // ---- Shared state fed by the ETW consumer -------------------------------
 
     MemoryModel g_model;
-    std::unique_ptr<DxEtwEventHandler> g_handler;
+    std::unique_ptr<DxTimingCaptureEventHandler> g_handler;
 
     std::wstring g_sessionName;
     TRACEHANDLE g_sessionHandle = 0;
@@ -85,13 +85,13 @@ namespace
         DxTimingCaptureLibraryOptions options{};
         options.TrackApiObjects = true;
 
-        DxEtwEventCallbacks callbacks{};
+        DxTimingCaptureEventCallbacks callbacks{};
         static ApiObjectSink apiObjectSink(g_model);
         static ResidencySink residencySink(g_model);
         callbacks.ApiObjectCallbacks = &apiObjectSink;
         callbacks.ResidencyEventCallbacks = &residencySink;
 
-        g_handler = DxEtwEventHandler::Create(processId, options, callbacks);
+        g_handler = DxTimingCaptureEventHandler::Create(processId, options, callbacks);
     }
 
     // Live real-time capture against a running process, on its own thread.
@@ -730,7 +730,7 @@ namespace
         windowClass.lpfnWndProc = WindowProc;
         windowClass.hInstance = instance;
         windowClass.hCursor = LoadCursor(nullptr, IDC_ARROW);
-        windowClass.lpszClassName = L"DxEtwMemoryMapWindow";
+        windowClass.lpszClassName = L"DxTimingCaptureMemoryMapWindow";
         RegisterClassExW(&windowClass);
 
         HWND hwnd = CreateWindowExW(

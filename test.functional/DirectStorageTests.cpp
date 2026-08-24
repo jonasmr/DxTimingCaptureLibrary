@@ -15,7 +15,7 @@
 #include <thread>
 #include <vector>
 
-#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h>
 #include <DxTimingCaptureLibrary/TicksToNanoseconds.h>
 
 #include "EtwSession.h"

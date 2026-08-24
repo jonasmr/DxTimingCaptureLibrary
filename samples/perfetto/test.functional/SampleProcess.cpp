@@ -222,7 +222,7 @@ namespace DxTimingCaptureLibraryTest
         GetExitCodeProcess(process.Value, &run.ExitCode);
         run.Output = ReadFileText(outputPath);
 
-        const auto tracePath = workingDirectory / L"dxetw.perfetto-trace";
+        const auto tracePath = workingDirectory / L"dxtimingcapture.perfetto-trace";
         if (std::filesystem::exists(tracePath))
         {
             run.Trace = ReadPerfettoTrace(tracePath.string());
@@ -247,7 +247,7 @@ namespace DxTimingCaptureLibraryTest
         GetExitCodeProcess(process.Value, &invocation.ExitCode);
         invocation.Output = ReadFileText(outputPath);
 
-        const auto tracePath = workingDirectory / L"dxetw.perfetto-trace";
+        const auto tracePath = workingDirectory / L"dxtimingcapture.perfetto-trace";
         if (std::filesystem::exists(tracePath))
         {
             invocation.Trace = ReadPerfettoTrace(tracePath.string());
