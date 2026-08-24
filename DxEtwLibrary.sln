@@ -16,6 +16,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxEtwLibrary.sample.perfett
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "perfetto", "third_party\perfetto\perfetto.vcxproj", "{C7E5A2F0-8B3D-4E6A-9F12-3C4D5E6F7A80}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "imgui", "third_party\imgui\imgui.vcxproj", "{78F5BF88-35FC-4C4B-9C88-B8D03B6FDD7B}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxEtwLibrary.sample.memorymap", "samples\memorymap\DxEtwLibrary.sample.memorymap.vcxproj", "{D519BA6D-0853-4333-9A41-B126FAE0AB93}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -50,6 +54,14 @@ Global
 		{C7E5A2F0-8B3D-4E6A-9F12-3C4D5E6F7A80}.Debug|x64.Build.0 = Debug|x64
 		{C7E5A2F0-8B3D-4E6A-9F12-3C4D5E6F7A80}.Release|x64.ActiveCfg = Release|x64
 		{C7E5A2F0-8B3D-4E6A-9F12-3C4D5E6F7A80}.Release|x64.Build.0 = Release|x64
+		{78F5BF88-35FC-4C4B-9C88-B8D03B6FDD7B}.Debug|x64.ActiveCfg = Debug|x64
+		{78F5BF88-35FC-4C4B-9C88-B8D03B6FDD7B}.Debug|x64.Build.0 = Debug|x64
+		{78F5BF88-35FC-4C4B-9C88-B8D03B6FDD7B}.Release|x64.ActiveCfg = Release|x64
+		{78F5BF88-35FC-4C4B-9C88-B8D03B6FDD7B}.Release|x64.Build.0 = Release|x64
+		{D519BA6D-0853-4333-9A41-B126FAE0AB93}.Debug|x64.ActiveCfg = Debug|x64
+		{D519BA6D-0853-4333-9A41-B126FAE0AB93}.Debug|x64.Build.0 = Debug|x64
+		{D519BA6D-0853-4333-9A41-B126FAE0AB93}.Release|x64.ActiveCfg = Release|x64
+		{D519BA6D-0853-4333-9A41-B126FAE0AB93}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -26,6 +26,15 @@
           "commitHash": "v56.1"
         }
       }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/ocornut/imgui",
+          "commitHash": "v1.91.8"
+        }
+      }
     }
   ],
   "Version": 1

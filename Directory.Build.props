@@ -28,6 +28,7 @@
   <PropertyGroup>
     <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <DxEtwStandaloneBuild Condition="'$(DxEtwStandaloneBuild)' == ''">true</DxEtwStandaloneBuild>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -37,6 +38,7 @@
     <GoogleTestPath>$(DxEtwLibraryRoot)\third_party\googletest</GoogleTestPath>
     <PixEventDecoderPath>$(DxEtwLibraryRoot)\third_party\PixEventDecoder</PixEventDecoderPath>
     <PerfettoPath>$(DxEtwLibraryRoot)\third_party\perfetto</PerfettoPath>
+    <ImguiPath>$(DxEtwLibraryRoot)\third_party\imgui</ImguiPath>
     <!-- Vendored DirectX ETW manifest headers (D3D12Events.h, lddmcoreeventdefs.h)
          so <D3D12Events.h> / <lddmcoreeventdefs.h> resolve without a PIX checkout.
          Placed ahead of PixSrcRoot below; in a PIX build this is not on the

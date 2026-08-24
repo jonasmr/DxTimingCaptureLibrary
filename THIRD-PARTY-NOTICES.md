@@ -32,6 +32,17 @@ graphics-kernel (DXGK / LDDMCore) ETW providers, identified by manifest headers:
 For an in-tree PIX build these are not on the include path; the real Windows/PIX
 headers are used instead.
 
+## Dear ImGui (`third_party/imgui/`)
+
+The `sample.memorymap` GUI is built with Dear ImGui, which is included under
+`third_party/imgui/` (see its `README`):
+
+- The core library (`imgui.cpp`, `imgui_draw.cpp`, `imgui_tables.cpp`,
+  `imgui_widgets.cpp`) plus the Win32 and DirectX 11 backends under `backends/`.
+
+- Project: Dear ImGui — https://github.com/ocornut/imgui (v1.91.8)
+- License: MIT
+
 ## Other Windows headers consumed at build time
 
 The library also compiles against `d3d12.h` (DirectX Agility SDK), `d3d12umddi.h`
