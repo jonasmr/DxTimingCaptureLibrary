@@ -1,4 +1,10 @@
-// Copyright (C) Microsoft Corporation. All rights reserved.
+/*-------------------------------------------------------------------------------------
+ *
+ * Copyright (c) Microsoft Corporation
+ * Licensed under the MIT license
+ *
+ *-------------------------------------------------------------------------------------*/
+
 #pragma once
 
 #include <evntprov.h>
