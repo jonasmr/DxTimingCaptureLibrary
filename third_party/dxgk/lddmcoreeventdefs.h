@@ -1,12 +1,11 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 //
-// DirectX graphics-kernel (DXGK / LDDMCore) ETW values used by DxTimingCaptureLibrary: the
+// Vendored DirectX graphics-kernel (DXGK / LDDMCore) ETW values used by DxTimingCaptureLibrary: the
 // provider GUID, the keyword (log-flag) bits, and the event ids the dispatcher
 // switches on. These are defined by the DXGK ETW manifest LDDMCore.man, which
-// ships with GPUView (in the Windows Performance Toolkit); the same values
-// appear in the generated lddmcoreeventdefs.h in a Windows/PIX build. Only the
-// values DxTimingCaptureLibrary references are listed here; see LDDMCore.man for the rest.
+// ships with GPUView in the Windows Performance Toolkit. Only the values
+// DxTimingCaptureLibrary references are listed here; see LDDMCore.man for the rest.
 
 #pragma once
 

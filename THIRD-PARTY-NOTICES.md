@@ -20,7 +20,7 @@ Only the decoder headers are included. Standalone builds use
 
 ## DXGK ETW manifest definitions
 
-`third_party/etw-manifest/lddmcoreeventdefs.h` contains the subset of DXGK /
+`third_party/dxgk/lddmcoreeventdefs.h` contains the subset of DXGK /
 LDDMCore provider constants used by the library. The values originate from
 `LDDMCore.man`, distributed with GPUView in the Windows Performance Toolkit.
 

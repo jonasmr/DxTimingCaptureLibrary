@@ -56,7 +56,5 @@ swapped for a file-mode session.
 
 ## Building
 
-The project builds as part of the DxTimingCaptureLibrary solution. It references
-`DxTimingCaptureLibrary.lib` and, like the other samples, links `PixUtility` and
-`PixEventDecoder` only when those are available (`UsePixUtility`); a standalone
-build uses DxTimingCaptureLibrary's self-contained fallbacks.
+The project builds as part of the DxTimingCaptureLibrary solution and references
+`DxTimingCaptureLibrary.lib`.

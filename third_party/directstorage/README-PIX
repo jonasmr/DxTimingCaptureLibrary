@@ -1,7 +1,6 @@
-DirectStorage ETW event definitions, vendored so a standalone build resolves
-<dstorage_etw.h> without a PIX checkout. Placed on the include path via
-DirectStorageEtwPath (Directory.Build.props); an in-tree PIX build points the
-same include at its own external\DirectStorage copy instead.
+DirectStorage ETW event definitions, vendored because <dstorage_etw.h> is not
+available from a public SDK or NuGet package. The directory is placed on the
+include path via DirectStorageEtwPath in Directory.Build.props.
 
   dstorage_etw.h
       Verbatim copy of the DirectStorage ETW header. The library uses the

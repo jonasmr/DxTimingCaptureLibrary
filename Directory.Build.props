@@ -52,7 +52,7 @@
     <!-- lddmcoreeventdefs.h and dstorage_etw.h ship in no public SDK or NuGet
          package, so they are vendored here. In a PIX build these directories
          are not on the include path and the in-tree copies are used. -->
-    <EtwManifestPath>$(DxTimingCaptureLibraryRoot)\third_party\etw-manifest</EtwManifestPath>
+    <DxgkEtwPath>$(DxTimingCaptureLibraryRoot)\third_party\dxgk</DxgkEtwPath>
     <DirectStorageEtwPath>$(DxTimingCaptureLibraryRoot)\third_party\directstorage</DirectStorageEtwPath>
     <!-- true: compile the DecodeTimingBlock stub and skip the decoder reference.
          false: link the real PixEventDecoder.lib (e.g. an in-tree PIX build). -->
@@ -72,7 +72,7 @@
       <PreprocessorDefinitions>UNICODE;_UNICODE;NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>
         $(DxTimingCaptureLibraryRoot)\include;
-        $(EtwManifestPath);
+        $(DxgkEtwPath);
         $(DirectStorageEtwPath);
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
