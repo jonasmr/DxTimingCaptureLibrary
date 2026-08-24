@@ -20,6 +20,8 @@
       <AdditionalIncludeDirectories>
         $(GoogleTestPath)\googletest\include;
         $(PixEventDecoderPath)\include;
+        $(PerfettoPath)\sdk;
+        $(DxEtwLibraryRoot)\samples\perfetto;
         %(AdditionalIncludeDirectories);
       </AdditionalIncludeDirectories>
     </ClCompile>
@@ -35,6 +37,7 @@
         legacy_stdio_definitions.lib;
         legacy_stdio_wide_specifiers.lib;
         imagehlp.lib;
+        ws2_32.lib;
       </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -50,10 +53,25 @@
     <ClCompile Include="CommandListNameTests.cpp" />
     <ClCompile Include="GpuEngineActivityTests.cpp" />
     <ClCompile Include="GpuWorkload.cpp" />
+    <ClCompile Include="PerfettoSampleTests.cpp" />
+    <!-- The perfetto sample's writer is tested in place rather than duplicated. It
+         and the trace reader are the only TUs that include perfetto.h, which is
+         large and not written for /permissive-. -->
+    <ClCompile Include="$(DxEtwLibraryRoot)\samples\perfetto\PerfettoTraceWriter.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ConformanceMode>false</ConformanceMode>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="PerfettoTraceReader.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ConformanceMode>false</ConformanceMode>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EtwSession.h" />
     <ClInclude Include="GpuWorkload.h" />
+    <ClInclude Include="PerfettoTraceReader.h" />
     <ClInclude Include="RecordingApiObjectCallbacks.h" />
     <ClInclude Include="RecordingDirectStorageCallbacks.h" />
     <ClInclude Include="pch.h" />
@@ -74,6 +92,9 @@
     </ProjectReference>
     <ProjectReference Include="$(DxEtwLibraryRoot)\lib\DxEtwLibrary.lib.vcxproj">
       <Project>{bd5d2df6-a412-48d8-a0c9-d220dccb92d3}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(PerfettoPath)\perfetto.vcxproj">
+      <Project>{c7e5a2f0-8b3d-4e6a-9f12-3c4d5e6f7a80}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
