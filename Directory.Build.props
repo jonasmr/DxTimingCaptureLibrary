@@ -10,21 +10,20 @@
   Headers shared with PIX are included unprefixed (<d3d12.h>, <D3D12Events.h>,
   <lddmcoreeventdefs.h>, <dstorage_etw.h>) so that each build can satisfy them
   from a different place. Here they come from the Agility SDK NuGet package and
-  the vendored copies under third_party; PIX's equivalent props points the same
-  includes at its own external\d3d and external\DirectStorage.
+  from third_party; PIX's equivalent props points the same includes at its own
+  external\d3d and external\DirectStorage.
 
   A standalone build needs no PIX checkout: everything else resolves from the
   Windows SDK, NuGet, or third_party.
 -->
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
-  <!-- Supplies d3d12.h and friends. The package's own .targets prepends its
-       include directory, so the Agility headers win over the Windows SDK's.
-       A preview package is required: the D3D12_MARKER_API_* enum the marker
-       decoder switches on only appears from the 719 preview onwards, and 721
-       matches the D3D12_PREVIEW_SDK_VERSION of the header PIX vendors. -->
+  <!-- Supplies d3d12.h, D3D12Events.h and friends. The package's own .targets
+       prepends its include directory, so the Agility headers win over the
+       Windows SDK's. Marker ops that only exist in the preview SDK are guarded
+       in MarkerOp.h, so the stable package is enough. -->
   <ItemGroup Condition="'$(DxTimingCaptureStandaloneBuild)' == 'true'">
-    <PackageReference Include="Microsoft.Direct3D.D3D12" Version="1.721.1-preview" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Direct3D.D3D12" Version="1.619.5" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup Label="ProjectConfigurations">
@@ -50,10 +49,9 @@
     <PixEventDecoderPath>$(DxTimingCaptureLibraryRoot)\third_party\PixEventDecoder</PixEventDecoderPath>
     <PerfettoPath>$(DxTimingCaptureLibraryRoot)\third_party\perfetto</PerfettoPath>
     <ImguiPath>$(DxTimingCaptureLibraryRoot)\third_party\imgui</ImguiPath>
-    <!-- Vendored DirectX ETW manifest headers (D3D12Events.h, lddmcoreeventdefs.h)
-         and the DirectStorage ETW header, none of which ship in a public SDK or
-         NuGet package. In a PIX build these directories are not on the include
-         path and the in-tree copies are used. -->
+    <!-- lddmcoreeventdefs.h and dstorage_etw.h ship in no public SDK or NuGet
+         package, so they are vendored here. In a PIX build these directories
+         are not on the include path and the in-tree copies are used. -->
     <EtwManifestPath>$(DxTimingCaptureLibraryRoot)\third_party\etw-manifest</EtwManifestPath>
     <DirectStorageEtwPath>$(DxTimingCaptureLibraryRoot)\third_party\directstorage</DirectStorageEtwPath>
     <!-- true: compile the DecodeTimingBlock stub and skip the decoder reference.

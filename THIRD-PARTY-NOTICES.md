@@ -18,19 +18,17 @@ Only the headers are vendored. The decoder implementation is **not** linked;
 - Project: WinPixEventRuntime — https://github.com/microsoft/pixevents
 - License: MIT
 
-## DirectX ETW manifest headers (`third_party/etw-manifest/`)
+## DXGK ETW manifest header (`third_party/etw-manifest/`)
 
-The library decodes events from the Microsoft-Windows-D3D12 and DirectX
-graphics-kernel (DXGK / LDDMCore) ETW providers, identified by manifest headers:
+The library decodes events from the DirectX graphics-kernel (DXGK / LDDMCore) ETW
+provider, identified by a manifest header:
 
-- `D3D12Events.h` — a verbatim copy of the mc.exe-generated
-  Microsoft-Windows-D3D12 manifest header. Copyright (c) Microsoft Corporation.
 - `lddmcoreeventdefs.h` — the DXGK provider GUID, keyword flags, and event-id
   constants the library uses, taken from the DXGK ETW manifest `LDDMCore.man`
   that ships with GPUView (see its `README-PIX`).
 
-For an in-tree PIX build these are not on the include path; the real Windows/PIX
-headers are used instead.
+For an in-tree PIX build this is not on the include path; the real Windows/PIX
+header is used instead.
 
 ## DirectStorage ETW header (`third_party/directstorage/`)
 
@@ -55,7 +53,7 @@ The `sample.memorymap` GUI is built with Dear ImGui, which is included under
 
 ## Other Windows headers consumed at build time
 
-The library also compiles against the DirectX Agility SDK headers (`d3d12.h` and
-friends), restored from the `Microsoft.Direct3D.D3D12` NuGet package, and against
-`d3dkmthk.h` and other headers from the Windows SDK. Neither set is redistributed
-here.
+The library also compiles against the DirectX Agility SDK headers (`d3d12.h`,
+`D3D12Events.h` and friends), restored from the `Microsoft.Direct3D.D3D12` NuGet
+package, and against `d3dkmthk.h` and other headers from the Windows SDK. Neither
+set is redistributed here.

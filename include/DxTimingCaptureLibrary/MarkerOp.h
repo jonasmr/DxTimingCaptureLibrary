@@ -44,6 +44,12 @@ namespace DirectX::Etw
     macro(Barrier                       , BARRIER )                     \
     macro(DispatchGraph                 , DISPATCHGRAPH )               \
     macro(SetProgram                    , SETPROGRAM )                  \
+
+// These render ops only exist in the preview SDK; older Agility SDKs do not
+// declare their D3D12_MARKER_API_* values, so the library does not decode them.
+#if defined(D3D12_PREVIEW_SDK_VERSION) && D3D12_PREVIEW_SDK_VERSION >= 721
+
+#define FOR_EACH_GRAPHICS_PREVIEW_RENDER_OP_API(macro) \
     macro(WaitBarrier                   , WAITBARRIER )                 \
     macro(SignalBarrier                 , SIGNALBARRIER )               \
     macro(ConvertLinearAlgebraMatrix    , CONVERT_LINEAR_ALGEBRA_MATRIX) \
@@ -60,6 +66,13 @@ namespace DirectX::Etw
     macro(ClearBoundRenderTargetViews   , CLEARBOUNDRENDERTARGETVIEWS ) \
     macro(ClearTextureSubresources      , CLEARTEXTURESUBRESOURCES )    \
     macro(FillBuffers                   , FILLBUFFERS )                 \
+
+#else
+
+#define FOR_EACH_GRAPHICS_PREVIEW_RENDER_OP_API(macro)
+#define FOR_EACH_ASYNC_COMMANDS_RENDER_OP_API(macro)
+
+#endif
 
 #define FOR_EACH_RENDER_OP_COMMON_VIDEO_RENDER_OP_API(macro) \
     macro(InitializeExtensionCommand    , INITIALIZEEXTENSIONCOMMAND )  \
@@ -88,6 +101,7 @@ namespace DirectX::Etw
     FOR_EACH_RENDER_OP_COMMON_API(macro) \
     FOR_EACH_RENDER_OP_COMMON_VIDEO_RENDER_OP_API(macro) \
     FOR_EACH_GRAPHICS_RENDER_OP_API(macro) \
+    FOR_EACH_GRAPHICS_PREVIEW_RENDER_OP_API(macro) \
     FOR_EACH_VIDEO_DECODE_RENDER_OP_API(macro) \
     FOR_EACH_VIDEO_PROCESS_RENDER_OP_API(macro) \
     FOR_EACH_VIDEO_ENCODE_RENDER_OP_API(macro) \
@@ -131,6 +145,7 @@ namespace DirectX::Etw
 #undef FOR_EACH_VIDEO_PROCESS_RENDER_OP_API
 #undef FOR_EACH_VIDEO_DECODE_RENDER_OP_API
 #undef FOR_EACH_GRAPHICS_RENDER_OP_API
+#undef FOR_EACH_GRAPHICS_PREVIEW_RENDER_OP_API
 #undef FOR_EACH_RENDER_OP_COMMON_VIDEO_RENDER_OP_API
 #undef FOR_EACH_RENDER_OP_COMMON_API
 #undef ETW_MANIFEST_MARKER_VALUE
