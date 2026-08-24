@@ -32,8 +32,10 @@ namespace
         int len = WideCharToMultiByte(CP_UTF8, 0, w, -1, nullptr, 0, nullptr, nullptr);
         if (len <= 1)
             return {};
-        std::string s(static_cast<size_t>(len - 1), '\0');
-        WideCharToMultiByte(CP_UTF8, 0, w, -1, s.data(), len, nullptr, nullptr);
+        std::string s(static_cast<size_t>(len), '\0');
+        if (WideCharToMultiByte(CP_UTF8, 0, w, -1, s.data(), len, nullptr, nullptr) != len)
+            return {};
+        s.pop_back();
         return s;
     }
 }

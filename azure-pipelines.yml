@@ -1,0 +1,173 @@
+name: DxTimingCaptureLibrary_$(SourceBranchName)_$(date:yyMM).$(date:dd)$(rev:rrr)
+
+trigger:
+  batch: true
+  branches:
+    include:
+    - main
+
+pr:
+  branches:
+    include:
+    - main
+
+pool:
+  vmImage: windows-2025
+
+variables:
+- name: InfraRetryCountOnTaskFailure
+  value: 5
+
+stages:
+- stage: BuildAndTest
+  displayName: Build and test
+  jobs:
+  - job: BuildAndTest
+    displayName: x64 $(BuildConfiguration)
+    timeoutInMinutes: 120
+    strategy:
+      matrix:
+        Debug_x64:
+          BuildPlatform: x64
+          BuildConfiguration: Debug
+        Release_x64:
+          BuildPlatform: x64
+          BuildConfiguration: Release
+
+    steps:
+    - checkout: self
+      fetchDepth: 1
+      fetchTags: false
+
+    - task: PowerShell@2
+      displayName: Initialize output directories
+      inputs:
+        targetType: inline
+        script: |
+          New-Item -ItemType Directory -Force `
+            -Path "$(Build.ArtifactStagingDirectory)\logs", `
+                  "$(Build.ArtifactStagingDirectory)\test-results", `
+                  "$(Build.SourcesDirectory)\x64\$(BuildConfiguration)" | Out-Null
+
+    - task: VSBuild@1
+      displayName: Restore dependencies
+      inputs:
+        solution: DxTimingCaptureLibrary.sln
+        vsVersion: '17.0'
+        msbuildArgs: >
+          /t:Restore
+          /fl
+          /flp:LogFile=$(Build.ArtifactStagingDirectory)\logs\MsBuild.Restore.log;Verbosity=diagnostic
+          /p:UseNativeEnvironment=True
+        platform: '$(BuildPlatform)'
+        configuration: '$(BuildConfiguration)'
+        maximumCpuCount: true
+      retryCountOnTaskFailure: ${{ variables.InfraRetryCountOnTaskFailure }}
+
+    - task: VSBuild@1
+      displayName: Build solution DxTimingCaptureLibrary.sln
+      inputs:
+        solution: DxTimingCaptureLibrary.sln
+        vsVersion: '17.0'
+        # Restore generated the native package imports; skip VS 2022's incompatible
+        # second pass over the native,Version=v0.0 assets during compilation.
+        msbuildArgs: >
+          /fl
+          /flp:LogFile=$(Build.ArtifactStagingDirectory)\logs\MsBuild.log;Verbosity=diagnostic
+          /p:UseNativeEnvironment=True
+          /p:ResolveNuGetPackages=false
+        platform: '$(BuildPlatform)'
+        configuration: '$(BuildConfiguration)'
+        clean: true
+        maximumCpuCount: true
+
+    - task: PowerShell@2
+      displayName: Run deterministic GoogleTest unit tests
+      inputs:
+        targetType: inline
+        script: |
+          $ErrorActionPreference = 'Stop'
+          $resultsDirectory = "$(Build.ArtifactStagingDirectory)\test-results"
+          $outputDirectory = "$(Build.SourcesDirectory)\x64\$(BuildConfiguration)"
+          $tests = @(
+            @{
+              Name = 'DxTimingCaptureLibrary.test.unit'
+              Path = Join-Path $outputDirectory 'DxTimingCaptureLibrary.test.unit.exe'
+            },
+            @{
+              Name = 'DxTimingCaptureLibrary.sample.perfetto.test.unit'
+              Path = Join-Path $outputDirectory 'DxTimingCaptureLibrary.sample.perfetto.test.unit.exe'
+            }
+          )
+
+          $failed = $false
+          foreach ($test in $tests) {
+            $resultPath = Join-Path $resultsDirectory "$($test.Name).xml"
+            Remove-Item -Path $resultPath -Force -ErrorAction SilentlyContinue
+
+            if (-not (Test-Path -LiteralPath $test.Path -PathType Leaf)) {
+              Write-Host "##vso[task.logissue type=error]Test executable not found: $($test.Path)"
+              $failed = $true
+              continue
+            }
+
+            Write-Host "Running $($test.Path)"
+            & $test.Path "--gtest_output=xml:$resultPath" '--gtest_color=yes'
+            $exitCode = $LASTEXITCODE
+
+            if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
+              Write-Host "##vso[task.logissue type=error]$($test.Name) did not produce its required GoogleTest XML result."
+              $failed = $true
+              continue
+            }
+
+            try {
+              [xml] $result = Get-Content -LiteralPath $resultPath -Raw
+              $testCount = [int] $result.testsuites.tests
+              if ($testCount -le 0) {
+                throw "The result contains no tests."
+              }
+              Write-Host "$($test.Name) reported $testCount tests."
+            }
+            catch {
+              Write-Host "##vso[task.logissue type=error]Invalid GoogleTest XML from $($test.Name): $($_.Exception.Message)"
+              $failed = $true
+            }
+
+            if ($exitCode -ne 0) {
+              Write-Host "##vso[task.logissue type=error]$($test.Name) exited with code $exitCode."
+              $failed = $true
+            }
+          }
+
+          if ($failed) {
+            exit 1
+          }
+
+    - task: PublishTestResults@2
+      displayName: Publish GoogleTest results
+      condition: succeededOrFailed()
+      inputs:
+        testResultsFormat: JUnit
+        testResultsFiles: '*.xml'
+        searchFolder: '$(Build.ArtifactStagingDirectory)\test-results'
+        mergeTestResults: true
+        testRunTitle: 'GoogleTest_$(BuildPlatform)_$(BuildConfiguration)'
+        failTaskOnFailedTests: true
+        failTaskOnMissingResults: true
+
+    - task: PublishPipelineArtifact@1
+      displayName: Publish binaries
+      condition: succeededOrFailed()
+      inputs:
+        targetPath: '$(Build.SourcesDirectory)\x64\$(BuildConfiguration)'
+        artifact: '$(BuildPlatform)_$(BuildConfiguration)'
+      retryCountOnTaskFailure: ${{ variables.InfraRetryCountOnTaskFailure }}
+
+    - task: PublishPipelineArtifact@1
+      displayName: Publish build diagnostics
+      condition: succeededOrFailed()
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)'
+        artifact: 'diagnostics_$(BuildPlatform)_$(BuildConfiguration)'
+      retryCountOnTaskFailure: ${{ variables.InfraRetryCountOnTaskFailure }}
