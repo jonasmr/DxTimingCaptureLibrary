@@ -39,6 +39,13 @@ namespace
         return "PID " + std::to_string(processId);
     }
 
+    std::string CurrentProcessImageName()
+    {
+        wchar_t path[MAX_PATH]{};
+        GetModuleFileNameW(nullptr, path, ARRAYSIZE(path));
+        return std::filesystem::path(path).filename().string();
+    }
+
     // Writes to a file named after the running test so a failure leaves the trace
     // behind to look at, and two tests never collide.
     class TraceFile
@@ -233,7 +240,7 @@ TEST(PerfettoSampleTests, EngineActivityNamesTheProcessThatRanIt)
 
     const auto engineActivity = trace.SlicesOnTracksContaining("other/unknown processes");
     ASSERT_EQ(engineActivity.size(), 1u);
-    EXPECT_NE(engineActivity[0].Name.find("DxEtwLibrary.test.functional.exe"), std::string::npos)
+    EXPECT_NE(engineActivity[0].Name.find(CurrentProcessImageName()), std::string::npos)
         << "Expected the image name, got: " << engineActivity[0].Name;
 }
 

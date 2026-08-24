@@ -162,7 +162,13 @@ Under a real-time session you can lose events. Feed the trace's logfile header t
 In-tree (within the PIX repo) the library builds with the rest of the solution as
 the `DxEtwLibrary` static library; the samples and tests are separate projects
 under [`samples/`](samples), [`test.unit/`](test.unit), and
-[`test.functional/`](test.functional).
+[`test.functional/`](test.functional). A sample with behaviour of its own carries
+its own tests next to it - see
+[`samples/perfetto/test.unit`](samples/perfetto/test.unit) and
+[`samples/perfetto/test.functional`](samples/perfetto/test.functional), which
+respectively drive the sample's classes directly and run the built sample against
+a live ETW session. The functional ones need administrator rights to start a
+session, and skip rather than fail without them.
 
 > **Standalone build status:** the public headers currently reach a few Windows
 > SDK/WDK and D3D event headers through the surrounding PIX source tree

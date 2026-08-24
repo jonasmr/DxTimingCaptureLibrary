@@ -14,6 +14,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "googletest_main", "third_pa
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxEtwLibrary.sample.perfetto", "samples\perfetto\DxEtwLibrary.sample.perfetto.vcxproj", "{D8F6B3A1-9C4E-5F7B-A023-4D5E6F7A8B90}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxEtwLibrary.sample.perfetto.test.unit", "samples\perfetto\test.unit\DxEtwLibrary.sample.perfetto.test.unit.vcxproj", "{5B7C1D4E-2A63-49F8-8E10-6C9B3D2A7F41}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxEtwLibrary.sample.perfetto.test.functional", "samples\perfetto\test.functional\DxEtwLibrary.sample.perfetto.test.functional.vcxproj", "{7E3A9C51-4B82-4D6A-9C37-1F8E5B2A6D93}"
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "perfetto", "third_party\perfetto\perfetto.vcxproj", "{C7E5A2F0-8B3D-4E6A-9F12-3C4D5E6F7A80}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "imgui", "third_party\imgui\imgui.vcxproj", "{78F5BF88-35FC-4C4B-9C88-B8D03B6FDD7B}"
@@ -42,6 +46,14 @@ Global
 		{4CC2E643-97DF-4F7D-9740-93FCCF974C7F}.Debug|x64.Build.0 = Debug|x64
 		{4CC2E643-97DF-4F7D-9740-93FCCF974C7F}.Release|x64.ActiveCfg = Release|x64
 		{4CC2E643-97DF-4F7D-9740-93FCCF974C7F}.Release|x64.Build.0 = Release|x64
+		{5B7C1D4E-2A63-49F8-8E10-6C9B3D2A7F41}.Debug|x64.ActiveCfg = Debug|x64
+		{5B7C1D4E-2A63-49F8-8E10-6C9B3D2A7F41}.Debug|x64.Build.0 = Debug|x64
+		{5B7C1D4E-2A63-49F8-8E10-6C9B3D2A7F41}.Release|x64.ActiveCfg = Release|x64
+		{5B7C1D4E-2A63-49F8-8E10-6C9B3D2A7F41}.Release|x64.Build.0 = Release|x64
+		{7E3A9C51-4B82-4D6A-9C37-1F8E5B2A6D93}.Debug|x64.ActiveCfg = Debug|x64
+		{7E3A9C51-4B82-4D6A-9C37-1F8E5B2A6D93}.Debug|x64.Build.0 = Debug|x64
+		{7E3A9C51-4B82-4D6A-9C37-1F8E5B2A6D93}.Release|x64.ActiveCfg = Release|x64
+		{7E3A9C51-4B82-4D6A-9C37-1F8E5B2A6D93}.Release|x64.Build.0 = Release|x64
 		{14629FEE-0926-4914-B534-87CD33CBC8CA}.Debug|x64.ActiveCfg = Debug|x64
 		{14629FEE-0926-4914-B534-87CD33CBC8CA}.Debug|x64.Build.0 = Debug|x64
 		{14629FEE-0926-4914-B534-87CD33CBC8CA}.Release|x64.ActiveCfg = Release|x64
