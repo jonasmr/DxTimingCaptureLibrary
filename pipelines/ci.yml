@@ -24,14 +24,14 @@ stages:
   displayName: Build and test
   jobs:
   - job: BuildAndTest
-    displayName: x64 $(BuildConfiguration)
+    displayName: x64
     timeoutInMinutes: 120
     strategy:
       matrix:
-        Debug_x64:
+        Debug:
           BuildPlatform: x64
           BuildConfiguration: Debug
-        Release_x64:
+        Release:
           BuildPlatform: x64
           BuildConfiguration: Release
 
