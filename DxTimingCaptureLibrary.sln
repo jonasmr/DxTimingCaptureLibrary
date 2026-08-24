@@ -6,6 +6,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxTimingCaptureLibrary.lib"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxTimingCaptureLibrary.sample", "samples\basic\DxTimingCaptureLibrary.sample.vcxproj", "{E0802F16-BC46-01A0-7406-78D3237CA78F}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxTimingCaptureLibrary.sample.journal", "samples\journal\DxTimingCaptureLibrary.sample.journal.vcxproj", "{1795E88B-6D92-4D38-90DB-4013F46F5169}"
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxTimingCaptureLibrary.test.unit", "test.unit\DxTimingCaptureLibrary.test.unit.vcxproj", "{9EC2C42D-E828-4494-BFB0-C44C193CE04F}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxTimingCaptureLibrary.test.functional", "test.functional\DxTimingCaptureLibrary.test.functional.vcxproj", "{4CC2E643-97DF-4F7D-9740-93FCCF974C7F}"
@@ -38,6 +40,10 @@ Global
 		{E0802F16-BC46-01A0-7406-78D3237CA78F}.Debug|x64.Build.0 = Debug|x64
 		{E0802F16-BC46-01A0-7406-78D3237CA78F}.Release|x64.ActiveCfg = Release|x64
 		{E0802F16-BC46-01A0-7406-78D3237CA78F}.Release|x64.Build.0 = Release|x64
+		{1795E88B-6D92-4D38-90DB-4013F46F5169}.Debug|x64.ActiveCfg = Debug|x64
+		{1795E88B-6D92-4D38-90DB-4013F46F5169}.Debug|x64.Build.0 = Debug|x64
+		{1795E88B-6D92-4D38-90DB-4013F46F5169}.Release|x64.ActiveCfg = Release|x64
+		{1795E88B-6D92-4D38-90DB-4013F46F5169}.Release|x64.Build.0 = Release|x64
 		{9EC2C42D-E828-4494-BFB0-C44C193CE04F}.Debug|x64.ActiveCfg = Debug|x64
 		{9EC2C42D-E828-4494-BFB0-C44C193CE04F}.Debug|x64.Build.0 = Debug|x64
 		{9EC2C42D-E828-4494-BFB0-C44C193CE04F}.Release|x64.ActiveCfg = Release|x64

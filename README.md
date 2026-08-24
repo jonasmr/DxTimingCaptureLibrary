@@ -1,28 +1,23 @@
 # DxTimingCaptureLibrary
 
-DxTimingCaptureLibrary is an in-process consumer of Windows ETW (Event Tracing for Windows)
-events that decodes and correlates D3D12, DirectX graphics-kernel
-(DXGK), and PIX-runtime events into useable callbacks.
-A game engine (or any D3D12 app) can use it to understand its own runtime
-behavior without having to parse raw ETW payloads itself.
+DxTimingCaptureLibrary is a consumer of Windows ETW (Event Tracing for Windows) events that's designed to make it easy for you to interpret DirectX ETW data in your applications.
 
-You create an ETW session (the samples can help you!) and implement the callbacks. The library does the decoding and correlation, and hands you easy-to-use data through the callbacks.
+The library decodes and correlates events from D3D12, the DirectX graphics kernel (DXGK), the PIX runtime, and DirectStorage, then delivers the results through straightforward callbacks. A game engine, profiler, or other D3D12 tool can use that data without parsing raw ETW payloads itself.
 
-## What you get
+We created DxEtwLibrary by extracting code from PIX Timing Captures and moving it into a standalone project. All DirectX data shown in the PIX Timing Capture UI is available through DxEtwLibrary.
 
-The library surfaces data including:
+## What does the library give you?
 
-- **D3D12 API object descs/data** — devices, resources (committed / placed / reserved),
-  heaps, descriptor heaps, command allocators, pipeline states, state objects,
-  meta commands: creation, destruction, naming, and GPU virtual address/size.
-- **GPU timing** — per-command-list GPU work spans correlated from DXGK history
-  buffers and D3D12/PIX markers.
-- **Memory & residency** — make-resident / evict / page-in / page-out, allocation
-  migration, per-adapter memory budget/usage counters, and PIX custom memory
-  events via WinPixEventRuntime APIs.
-- **PIX runtime data** — custom counters and CPU/GPU PIX markers.
-- **Monitors / vsync** — monitor enumeration and vsync timestamps.
-- **Diagnostics** — data-loss totals and recoverable-problem reports.
+- **GPU timing data**: top-of-pipe and bottom-of-pipe times for GPU work, command-list spans, and submission details.
+- **GPU engine activity**: see other processes' GPU work and how it relates to your process's work.
+- **Memory and residency events**: make-resident, evict, page-in, page-out, migration, segment changes - all attributed to specific D3D12 objects. Also see per-adapter memory budgets and usage.
+- **D3D12 objects**: creation/destruction times, names, descriptions, placement, size, and GPU virtual addresses for resources, heaps, pipeline states, and other API objects.
+- **PIX runtime data**: custom counters, memory events, and CPU/GPU markers.
+- **DirectStorage**: files, queues, reads, status notifications, fence signals, event signals, and submissions.
+- **D3D12 runtime failures**: detailed runtime error logs with timestamps, error codes, thread IDs, and messages.
+- **Pipeline-state compilation**: start and end timing for PSO compilation.
+- **Displays**: monitor information and VSync timestamps.
+- **Diagnostics**: ETW data-loss notifications and recoverable processing problems.
 
 ## Architecture at a glance
 
@@ -42,27 +37,15 @@ your ETW session  ─►  ProcessTrace  ─►  EventRecordCallback
                                    your callback interfaces
 ```
 
-The library handles events from Direct3D 12, the DirectX graphics kernel
-(LDDMCore/DXGK), the PIX event runtime, DirectStorage, and the ETW system-config
-provider. Events from anything else are ignored.
+The library handles events from Direct3D 12, the DirectX graphics kernel (LDDMCore/DXGK), the PIX event runtime, DirectStorage, and the ETW system-config provider. Events from anything else are ignored.
 
 ## Creating the handler
 
-Put the callbacks you care about in a `DxTimingCaptureEventCallbacks` struct and
-call `DxTimingCaptureEventHandler::Create()`. Every callback is optional; the
-library fills empty slots with no-op implementations. Callback objects are not
-owned by the handler, so keep them alive until the handler is destroyed.
+Add the callbacks you care about to `DxTimingCaptureEventCallbacks`, then pass the struct to `DxTimingCaptureEventHandler::Create()`. Every callback is optional; empty slots use no-op implementations. The handler does not own callback objects, so they must outlive it.
 
-`DxTimingCaptureLibraryOptions` controls the more expensive tracking work. Set
-`TrackApiObjects`, `TrackGpuTiming`, and/or `TrackGpuEngineActivity` to match the
-data you want and the ETW provider keywords you enable. The target process ID
-selects the process whose DirectX work is decoded.
+`DxTimingCaptureLibraryOptions` controls the more expensive tracking work. Set `TrackApiObjects`, `TrackGpuTiming`, and/or `TrackGpuEngineActivity` to match the data you want and the ETW provider keywords you enable.
 
-For a live raw-QPC session, `Create()` supplies the timestamp converter for you.
-The overload that accepts a `TimestampConverter` is mainly useful for offline
-ETL processing or another clock domain. See
-[`DxTimingCaptureEventHandler.h`](include/DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h)
-for the full API.
+The target process ID scopes API object, residency, and runtime-failure data. GPU timing can include multiple processes, while GPU engine activity is always machine-wide.
 
 ## Quickstart
 
@@ -107,23 +90,15 @@ catch (...)
 handler->OnDataComplete();
 ```
 
-### Required ETW session mode
+### ETW settings
 
-The session **must** be opened in raw-QPC timestamp mode:
-`PROCESS_TRACE_MODE_RAW_TIMESTAMP` on the trace and `Wnode.ClientContext = 1`
-(QPC) on the session. In that mode `EventHeader.TimeStamp` is a QPC tick count,
-which is what the default `QpcTimestampConverter` expects. Without it,
-`ProcessTrace` delivers FILETIME-based timestamps and the tick→ns conversion
-produces garbage. See `samples/basic/EtwConfig.h` and `samples/basic/main.cpp`.
+Your ETW session must use raw QPC timestamps: set `PROCESS_TRACE_MODE_RAW_TIMESTAMP` on the trace and `Wnode.ClientContext = 1` on the session. Without this, the timing data returned by the library will be wrong. The [basic sample](samples/basic) shows the complete setup.
 
 ## Samples
 
 ### [Basic event logging](samples/basic)
 
-This is the best place to start. It provides straightforward, `printf`-based
-implementations of the callback interfaces and shows the complete setup:
-creating a real-time ETW session, enabling the DirectX providers, feeding events
-to the library, handling errors, and reporting data loss.
+This is the best place to start. It provides straightforward, `printf`-based implementations of the callback interfaces and shows the complete setup: creating a real-time ETW session, enabling the DirectX providers, feeding events to the library, handling errors, and reporting data loss.
 
 Run it with an optional target process ID:
 
@@ -131,46 +106,24 @@ Run it with an optional target process ID:
 DxTimingCaptureLibrary.sample.exe [processId]
 ```
 
+### [D3D12 journal entries](samples/journal)
+
+This sample implements the runtime-failure callback and deliberately records an invalid `CopyBufferRegion` call. The D3D12 runtime rejects the call and writes a journal entry, which the library decodes and prints. Journal entries provide more detail than the normal D3D12 API error alone, work in retail D3D12 environments, and do not require the D3D12 debug layer.
+
 ### [Perfetto](samples/perfetto)
 
-This sample turns the library's GPU timing callbacks into a
-[Perfetto](https://perfetto.dev) trace file. The trace shows each command list's
-top-of-pipeline and end-of-pipeline timestamps on the GPU timeline and connects
-that work to the CPU-side marker where it was recorded. It can capture a live
-session or process an existing ETL file.
+This sample turns the library's GPU timing callbacks into a [Perfetto](https://perfetto.dev) trace file. The trace shows each command list's top-of-pipeline and end-of-pipeline timestamps on the GPU timeline and connects that work to the CPU-side marker where it was recorded. It can capture a live session or process an existing ETL file.
 
 ### [Memory map](samples/memorymap)
 
-This sample listens for resource creation and residency events and uses them to
-build a live memory visualization. It shows resource and heap usage in system
-and video memory while accounting for paging, eviction, migration, placed
-resources, and aliasing.
-
-## Data loss & diagnostics
-
-Under a real-time session you can lose events. Feed the trace's logfile header to
-`ReportTraceStatistics()` (typically from your ETW `BufferCallback` and once after
-`ProcessTrace` returns). Newly observed loss is reported through the
-`DiagnosticsSink`. The sink also reports recoverable correlation problems
-(unmatched GPU markers, backwards clock calibration, dropped PSO compilations,
-...). See [`EtwDiagnostics.h`](include/DxTimingCaptureLibrary/EtwDiagnostics.h)
-for the full `DiagnosticCode` catalog. A loss diagnostic means some capture data
-is missing.
+This sample listens for resource creation and residency events and uses them to build a live memory visualization. It shows resource and heap usage in system and video memory while accounting for paging, eviction, migration, placed resources, and aliasing.
 
 ## Building
 
-Open [`DxTimingCaptureLibrary.sln`](DxTimingCaptureLibrary.sln) in Visual Studio
-and build the x64 Debug or Release configuration. The solution includes the
-`DxTimingCaptureLibrary` static library, samples, and tests.
+Open [`DxTimingCaptureLibrary.sln`](DxTimingCaptureLibrary.sln) in Visual Studio and build the x64 Debug or Release configuration. The solution includes the `DxTimingCaptureLibrary` static library, samples, and tests.
 
-The main test projects live under [`test.unit/`](test.unit) and
-[`test.functional/`](test.functional). Samples with their own behavior keep
-their tests nearby; for example, see
-[`samples/perfetto/test.unit`](samples/perfetto/test.unit) and
-[`samples/perfetto/test.functional`](samples/perfetto/test.functional). The
-functional tests run against a live ETW session.
+The main test projects live under [`test.unit/`](test.unit) and [`test.functional/`](test.functional). Samples with their own behavior keep their tests nearby; for example, see [`samples/perfetto/test.unit`](samples/perfetto/test.unit) and [`samples/perfetto/test.functional`](samples/perfetto/test.functional). The functional tests run against a live ETW session.
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE). Third-party components are listed in
-[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+MIT — see [`LICENSE`](LICENSE). Third-party components are listed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
