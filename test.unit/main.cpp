@@ -3,8 +3,6 @@
 
 #include "pch.h"
 
-#include <external/googletest/VisualStudioWorkarounds.h>
-
 int __cdecl main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);

@@ -8,8 +8,8 @@
 
 // MarkerOp.h (pulled in transitively) expands the D3D12_MARKER_API_* constants
 // from the D3D12 ETW manifest headers, so those must be included first.
-#include <external/d3d/d3d12.h>
-#include <external/d3d/D3D12Events.h>
+#include <d3d12.h>
+#include <D3D12Events.h>
 
 #include <DxTimingCaptureLibrary/EtwCallbacks.h>
 

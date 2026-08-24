@@ -7,7 +7,7 @@
 #include <evntrace.h>
 #include <cstdio>
 
-#include <external/d3d/D3D12Events.h>
+#include <D3D12Events.h>
 
 struct EventTraceProperties
 {

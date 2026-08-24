@@ -7,7 +7,7 @@
 #include <tuple>
 #include <unordered_map>
 
-#include <external/DirectStorage/dstorage_etw.h>
+#include <dstorage_etw.h>
 #include <DxTimingCaptureLibrary/EtwCallbacks.h>
 #include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h> // TimestampConverter
 

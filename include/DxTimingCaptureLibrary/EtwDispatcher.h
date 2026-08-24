@@ -5,13 +5,13 @@
 
 #define D3D12_TOKENIZED_PROGRAM_FORMAT_HEADER
 #define NTSTATUS long // Defining this here to avoid including certain windows headers that may cause conflicts.
-#include <external/wdk/d3d12umddi.h>
+#include <d3dkmthk.h>
 
 #include <evntrace.h>
 #include <evntcons.h>
 
-#include <external/d3d/D3D12Events.h>
-#include <external/d3d/lddmcoreeventdefs.h>
+#include <D3D12Events.h>
+#include <lddmcoreeventdefs.h>
 #ifndef _M_IX86 // only defined for x86 build
 #include <DxTimingCaptureLibrary/PixEtwManifest.h>
 #endif
@@ -28,7 +28,7 @@
 #include <type_traits>
 #include <utility>
 
-#include <external/DirectStorage/dstorage_etw.h>
+#include <dstorage_etw.h>
 
 namespace DirectX::Etw
 {
@@ -244,7 +244,7 @@ namespace DirectX::Etw
                 DISPATCH_DXGK(EventPagingOpMapApertureSegment, PagingOpMapApertureSegment, Info);
                 // MigrateAllocation and CompleteAllocationMigration don't follow the typical Start/Stop ETW convention or naming scheme.
                 // The manifest names also don't appear to match the header (depending on where you get the manifest apparently),
-                // but the values check out (see external/d3d/lddmcoreeventdefs.h for the DXGK defines and winmeta.h for ETW opcode values to manually compare).
+                // but the values check out (see lddmcoreeventdefs.h for the DXGK defines and winmeta.h for ETW opcode values to manually compare).
                 DISPATCH_DXGK(EventMigrateAllocation, MigrateAllocation, Info);
                 DISPATCH_DXGK(EventCompleteAllocationMigration, CompleteAllocationMigration, Stop);
             }

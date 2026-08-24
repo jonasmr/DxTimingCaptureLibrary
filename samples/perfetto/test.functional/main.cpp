@@ -3,8 +3,6 @@
 
 #include "pch.h"
 
-#include <external/googletest/VisualStudioWorkarounds.h>
-
 #include <chrono>
 
 #include "GpuWorkload.h"

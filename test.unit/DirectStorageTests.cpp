@@ -16,7 +16,7 @@
 // synthesize the raw ETW records the handler decodes. This is exactly what a live
 // DirectStorage trace would deliver, so feeding these through a real
 // DxTimingCaptureEventHandler exercises the full decode + correlation path end to end.
-#include <external/DirectStorage/dstorage_etw.h>
+#include <dstorage_etw.h>
 
 #include "NoOpCallbacks.h"
 

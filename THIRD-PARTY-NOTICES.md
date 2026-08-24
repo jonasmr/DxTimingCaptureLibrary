@@ -32,6 +32,16 @@ graphics-kernel (DXGK / LDDMCore) ETW providers, identified by manifest headers:
 For an in-tree PIX build these are not on the include path; the real Windows/PIX
 headers are used instead.
 
+## DirectStorage ETW header (`third_party/directstorage/`)
+
+- `dstorage_etw.h` — a verbatim copy of the DirectStorage ETW event definitions.
+  Copyright (c) Microsoft Corporation. It is not published in the
+  `Microsoft.Direct3D.DirectStorage` NuGet package, which carries only
+  `dstorage.h` and `dstorageerr.h`, so it is vendored here.
+
+For an in-tree PIX build this is not on the include path; the real header is used
+instead.
+
 ## Dear ImGui (`third_party/imgui/`)
 
 The `sample.memorymap` GUI is built with Dear ImGui, which is included under
@@ -45,11 +55,7 @@ The `sample.memorymap` GUI is built with Dear ImGui, which is included under
 
 ## Other Windows headers consumed at build time
 
-The library also compiles against `d3d12.h` (DirectX Agility SDK), `d3d12umddi.h`
-(WDK), and `d3dkmthk.h`, supplied by the Windows SDK / WDK build toolchain and not
-redistributed here.
-
-> NOTE: In-tree these remaining headers are reached through the surrounding PIX
-> source tree (`<external/wdk/...>`, `<external/d3d/...>`). Repointing them at the
-> public Windows SDK/WDK and DirectX-Headers (or vendoring copies with confirmed
-> provenance) is still tracked and should be resolved before a public release.
+The library also compiles against the DirectX Agility SDK headers (`d3d12.h` and
+friends), restored from the `Microsoft.Direct3D.D3D12` NuGet package, and against
+`d3dkmthk.h` and other headers from the Windows SDK. Neither set is redistributed
+here.

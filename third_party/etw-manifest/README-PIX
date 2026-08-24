@@ -1,5 +1,5 @@
 DirectX ETW manifest headers, vendored so a standalone build resolves
-<D3D12Events.h> and <lddmcoreeventdefs.h> without a Windows/PIX checkout. They
+<D3D12Events.h> and <lddmcoreeventdefs.h> without a PIX checkout. They
 are placed on the include path via EtwManifestPath (Directory.Build.props),
 which sits ahead of the PIX include roots; an in-tree PIX build does not put this
 directory on the include path and uses the real headers instead.

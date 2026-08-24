@@ -3,8 +3,6 @@
 
 #include "pch.h"
 
-#include <external/googletest/VisualStudioWorkarounds.h>
-
 #include "GpuWorkload.h"
 
 int __cdecl main(int argc, char** argv)

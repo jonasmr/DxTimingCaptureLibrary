@@ -9,7 +9,7 @@
 #include <atomic>
 
 #include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h>
-#include <external/DirectStorage/dstorage_etw.h>
+#include <dstorage_etw.h>
 
 using namespace DirectX::Etw;
 

@@ -66,3 +66,8 @@ EXTERN_C __declspec(selectany) const GUID DxgkControlGuid =
 #define EventCreateHwQueue_value                       0x1a6
 #define EventDestroyHwQueue_value                      0x1a7
 #define EventReportHwQueue_value                       0x1a8
+// DMA packets
+#define EventDmaSubmit_value                           0xaf
+#define EventDmaIsrComplete_value                      0xb1
+#define EventDmaReleaseToGpu_value                     0x1c2
+#define EventDmaCompleteByGpu_value                    0x1c3
