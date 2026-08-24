@@ -301,6 +301,12 @@ private:
         uint64_t memoryUsage,
         uint64_t baseAddress,
         ApiObjectCallbacks* callbacks) const;
+
+    // Looks up which memory pool the given object's allocation lives in, or
+    // Unknown if we haven't seen the backing events yet. Pass a heap's own
+    // address; for resources pass their backing heap's address, since the
+    // resource has no allocation of its own.
+    MemorySegmentGroup TryResolveResidentGroup(uint64_t allocationBackedObjectAddress);
 };
 
 } // namespace DirectX::Etw

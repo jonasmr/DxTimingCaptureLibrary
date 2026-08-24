@@ -2515,6 +2515,9 @@ public:
         // allocationGlobalHandle corresponds to vidMmGlobalAlloc (not dxgGlobalAlloc).
         // AdapterAllocations come from process the allocation is for (not the system process).
 
+        // Runs before the adapterAllocation guard below - it only needs the adapter and segment id.
+        UpdateResidentSegmentGroup(adapters, dxgAdapter, allocationGlobalHandle, segmentId, timestamp, residencyCallbacks);
+
         const auto* const adapterAllocation = m_allocationTracker.TryFindAdapterAllocation(dxgAdapter, allocationGlobalHandle);
         if (adapterAllocation == nullptr)
             return;
@@ -2535,6 +2538,56 @@ public:
             // Need to defer the insertion until we get the segment info
             m_deferredDemotedAllocationEntries[dxgAdapter].push_back(entry);
         }
+    }
+
+    // Records where an allocation now lives and, if it moved, notifies consumers.
+    void UpdateResidentSegmentGroup(
+        AdapterTracker& adapters,
+        uint64_t dxgAdapter,
+        uint64_t allocationGlobalHandle,
+        uint32_t segmentId,
+        uint64_t timestamp,
+        ResidencyEventCallbacks* residencyCallbacks)
+    {
+        const auto segmentInfo = adapters.TryGetSegmentInfo(dxgAdapter, segmentId);
+        if (!segmentInfo)
+        {
+            // Segment's memory type isn't known yet; a later paging event will re-evaluate.
+            return;
+        }
+
+        // D3DKMT_MEMORY_SEGMENT_GROUP values line up with MemorySegmentGroup.
+        const auto group = static_cast<MemorySegmentGroup>(segmentInfo->MemorySegmentGroup);
+
+        const auto previousGroup = m_allocationTracker.TryGetResidentGroup(allocationGlobalHandle);
+        if (previousGroup == group)
+        {
+            return;
+        }
+
+        m_allocationTracker.SetResidentGroup(allocationGlobalHandle, group);
+
+        // Find the objects backed by this allocation so we can update their pool.
+        const auto owningApiObjectInfos = m_apiObjectProcessor.TryGetOwningApiObjectInfos(allocationGlobalHandle, /*isAllocGlobal*/ true);
+        if (owningApiObjectInfos.empty())
+        {
+            // Plenty of allocations don't map to a tracked object.
+            return;
+        }
+
+        std::vector<AllocationSegmentGroupChange> changes;
+        changes.reserve(owningApiObjectInfos.size());
+        for (const auto& owningApiObjectInfo : owningApiObjectInfos)
+        {
+            AllocationSegmentGroupChange change{};
+            change.ObjectId = owningApiObjectInfo.Id;
+            change.Timestamp = (INT64)timestamp;
+            change.ObjectType = owningApiObjectInfo.Type;
+            change.SegmentGroup = group;
+            changes.push_back(change);
+        }
+
+        ThrowFailure(residencyCallbacks->OnAllocationSegmentGroupChanges(changes.data(), (UINT32)changes.size()));
     }
 
     bool TryInsertDemotedAllocation(AdapterTracker& adapters, DemotedAllocationEntry entry, ResidencyEventCallbacks* residencyCallbacks)

@@ -52,6 +52,8 @@ void AllocationTracker::EraseAdapterAllocation(uint64_t vidMmGlobalAlloc)
                 return alloc.VidMmGlobalAlloc == vidMmGlobalAlloc;
             }),
         m_adapterAllocations.end());
+
+    m_residentGroupByVidMmGlobalAlloc.erase(vidMmGlobalAlloc);
 }
 
 const AllocationTracker::AllocationInfoEntry* const AllocationTracker::TryFindAllocationInfoByThunk(uint64_t thunkAllocation) const
@@ -78,6 +80,21 @@ const AllocationTracker::DeviceAllocation* const AllocationTracker::TryFindDevic
 {
     DeviceAllocationIterator deviceAllocationIt = std::find_if(m_deviceAllocations.cbegin(), m_deviceAllocations.cend(),
             [vidMmAlloc](const DeviceAllocation& alloc) { return alloc.VidMmAlloc == vidMmAlloc; });
+
+    if (deviceAllocationIt != m_deviceAllocations.cend())
+    {
+        return deviceAllocationIt._Ptr;
+    }
+    else
+    {
+        return nullptr;
+    }
+}
+
+const AllocationTracker::DeviceAllocation* const AllocationTracker::TryFindDeviceAllocationByThunk(uint64_t thunkAllocation) const
+{
+    DeviceAllocationIterator deviceAllocationIt = std::find_if(m_deviceAllocations.cbegin(), m_deviceAllocations.cend(),
+            [thunkAllocation](const DeviceAllocation& alloc) { return alloc.ThunkAllocation == thunkAllocation; });
 
     if (deviceAllocationIt != m_deviceAllocations.cend())
     {
@@ -131,6 +148,22 @@ uint64_t AllocationTracker::GetMemoryUsage(const AllocationInfo& info)
         result += kmtInfo.size;
     }
     return result;
+}
+
+void AllocationTracker::SetResidentGroup(uint64_t vidMmGlobalAlloc, MemorySegmentGroup group)
+{
+    m_residentGroupByVidMmGlobalAlloc[vidMmGlobalAlloc] = group;
+}
+
+std::optional<MemorySegmentGroup> AllocationTracker::TryGetResidentGroup(uint64_t vidMmGlobalAlloc) const
+{
+    const auto it = m_residentGroupByVidMmGlobalAlloc.find(vidMmGlobalAlloc);
+    if (it != m_residentGroupByVidMmGlobalAlloc.cend())
+    {
+        return it->second;
+    }
+
+    return std::nullopt;
 }
 
 } // namespace DirectX::Etw

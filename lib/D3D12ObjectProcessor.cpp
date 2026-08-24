@@ -415,6 +415,9 @@ void D3D12ObjectProcessor::AddResource(ResourceEntry resourceEntry, uint64_t dev
             placement.CommittedHeapProperties = heapEntry.Desc.Properties;
             placement.CommittedHeapFlags = heapEntry.Desc.Flags;
 
+            // Remember the implicit heap so we can resolve the resource's memory location later.
+            resourceEntry.ResourceHeapData.HeapObjectAddress = heapEntry.ObjectAddress;
+
             // Now that we know this committed resource owns the heap, the heap is implied, so drop it
             // (this also removes the deferred entry and the reverse-index entry).
             DropDeferredAmbiguousHeapByResource(resourceEntry.ObjectAddress);
@@ -867,6 +870,9 @@ void D3D12ObjectProcessor::InsertD3D12Heap(const HeapEntry& entry, ApiObjectCall
         resourcePlacement.CommittedHeapProperties = entry.Desc.Properties;
         resourcePlacement.CommittedHeapFlags = entry.Desc.Flags;
 
+        // Remember the implicit heap so we can resolve the resource's memory location later.
+        resourceEntry.ResourceHeapData.HeapObjectAddress = entry.ObjectAddress;
+
         InsertD3D12Resource(resourceEntry, callbacks);
 
         // Don't store implied heaps in the objects table in order to match Xbox behavior.
@@ -894,7 +900,9 @@ void D3D12ObjectProcessor::InsertD3D12Heap(const HeapEntry& entry, ApiObjectCall
         if (unambiguouslyImmutableHeap)
         {
             UINT64 objectId;
-            ThrowFailure(callbacks->OnHeapCreation(entry.Timestamp, entry.DeviceId.value(), entry.ProcessId, entry.ThreadId, &entry.Desc, &entry.Placement, &objectId));
+            ObjectPlacementInfo heapPlacement = entry.Placement;
+            heapPlacement.ResidentSegmentGroup = TryResolveResidentGroup(entry.ObjectAddress);
+            ThrowFailure(callbacks->OnHeapCreation(entry.Timestamp, entry.DeviceId.value(), entry.ProcessId, entry.ThreadId, &entry.Desc, &heapPlacement, &objectId));
 
             m_apiObjectTypeAddressToIds[(size_t)ApiObjectType::Heap][entry.ObjectAddress] = objectId;
             this->OnApiObjectInserted({ ApiObjectType::Heap, objectId, entry.ThreadId });
@@ -977,12 +985,14 @@ void D3D12ObjectProcessor::InsertD3D12Resource(const ResourceEntry& entry, ApiOb
     case ResourcePlacement::Committed:
     {
         ObjectPlacementInfo objectPlacement{ placement.GpuVirtualAddress, placement.GpuVirtualSize };
+        objectPlacement.ResidentSegmentGroup = TryResolveResidentGroup(entry.ResourceHeapData.HeapObjectAddress);
         ThrowFailure(callbacks->OnCommittedResourceCreation(entry.Timestamp, entry.DeviceId.value(), entry.ProcessId, entry.ThreadId, &entry.Desc, &objectPlacement, &placement.CommittedHeapProperties, placement.CommittedHeapFlags, &objectId));
         break;
     }
     case ResourcePlacement::Placed:
     {
         ObjectPlacementInfo objectPlacement{ placement.GpuVirtualAddress, placement.GpuVirtualSize };
+        objectPlacement.ResidentSegmentGroup = TryResolveResidentGroup(entry.ResourceHeapData.HeapObjectAddress);
         ThrowFailure(callbacks->OnPlacedResourceCreation(entry.Timestamp, entry.DeviceId.value(), entry.ProcessId, entry.ThreadId, &entry.Desc, &objectPlacement, &objectId));
         break;
     }
@@ -1068,6 +1078,37 @@ void D3D12ObjectProcessor::InsertD3D12MetaCommand(const MetaCommandEntry& entry,
 void D3D12ObjectProcessor::UpdateApiObjectSizeAndAddress(uint64_t timestamp, ApiObjectType objectType, UINT64 id, uint64_t memoryUsage, uint64_t baseAddress, ApiObjectCallbacks* callbacks) const
 {
     ThrowFailure(callbacks->OnApiObjectSizeAndAddress(timestamp, objectType, id, memoryUsage, baseAddress));
+}
+
+MemorySegmentGroup D3D12ObjectProcessor::TryResolveResidentGroup(uint64_t allocationBackedObjectAddress)
+{
+    // Walk object -> AllocationInfo -> device allocation (via thunk) -> resident group.
+    const auto allocationInfoHandleIt = m_objectAddressToAllocationInfoHandle.find(allocationBackedObjectAddress);
+    if (allocationInfoHandleIt == m_objectAddressToAllocationInfoHandle.end())
+    {
+        return MemorySegmentGroup::Unknown;
+    }
+
+    const AllocationInfo& info = m_allocationTracker.GetAllocationInfo(allocationInfoHandleIt->second);
+
+    // Bug 40407969: AllocationInfo can be missing kernel allocation info for large (>4GB) allocations.
+    if (info.kmtInfos.empty())
+    {
+        return MemorySegmentGroup::Unknown;
+    }
+
+    // Only classify from a live device allocation. The thunk handle is a reused
+    // D3DKMT handle-table index, so once the allocation has been destroyed we can't
+    // reliably map it back to a global handle -- guessing attaches the resource to a
+    // stale, evicted allocation and reports the wrong memory pool. Leave it Unknown;
+    // a real residency event will classify it later via UpdateResidentSegmentGroup.
+    const auto* const deviceAllocation = m_allocationTracker.TryFindDeviceAllocationByThunk(info.kmtInfos[0].kmAllocation);
+    if (deviceAllocation == nullptr)
+    {
+        return MemorySegmentGroup::Unknown;
+    }
+
+    return m_allocationTracker.TryGetResidentGroup(deviceAllocation->VidMmGlobalAlloc).value_or(MemorySegmentGroup::Unknown);
 }
 
 } // namespace DirectX::Etw

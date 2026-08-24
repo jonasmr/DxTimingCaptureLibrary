@@ -85,6 +85,15 @@ public:
     virtual HRESULT OnResidencyOperation(const ResidencyOperation* data) = 0;
     virtual HRESULT OnDemotedAllocations(const DemotedAllocation* data, UINT32 count) = 0;
     virtual HRESULT OnAllocationMigrations(const AllocationMigration* data, UINT32 count) = 0;
+
+    // One or more objects moved between video and system memory. Optional to
+    // implement - defaults to a no-op so existing callers keep compiling.
+    virtual HRESULT OnAllocationSegmentGroupChanges(const AllocationSegmentGroupChange* data, UINT32 count)
+    {
+        (void)data;
+        (void)count;
+        return S_OK;
+    }
 };
 
 class PixEventCallbacks

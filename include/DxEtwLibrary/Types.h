@@ -68,6 +68,17 @@ namespace DirectX::Etw
         UINT64 UmDeviceVersion;
     };
 
+    // Which memory pool a GPU allocation lives in. Values match
+    // D3DKMT_MEMORY_SEGMENT_GROUP so kernel values cast straight across.
+    // Local = video memory, NonLocal = system memory, Unknown = not seen yet
+    // (or no GPU allocation, e.g. a CPU-visible descriptor heap).
+    enum class MemorySegmentGroup : uint32_t
+    {
+        Unknown = 0xFFFFFFFF,
+        Local = 0,
+        NonLocal = 1,
+    };
+
     // The GPU virtual address range an object occupies. Accompanies the
     // D3D12 description in the creation callbacks (the description itself does
     // not carry an address).
@@ -75,6 +86,10 @@ namespace DirectX::Etw
     {
         UINT64 GpuVirtualAddress;
         UINT64 GpuVirtualSize;
+
+        // Where the backing allocation lives right now. Often Unknown at creation
+        // time; watch OnAllocationSegmentGroupChanges for updates.
+        MemorySegmentGroup ResidentSegmentGroup = MemorySegmentGroup::Unknown;
     };
 
     // Tiling information for a reserved (tiled) resource.
@@ -124,6 +139,17 @@ namespace DirectX::Etw
         INT64 StartTime;
         INT64 EndTime;
         AllocationMigrationResult Result;
+    };
+
+    // An object's backing allocation moved between video and system memory
+    // (paged out, or promoted back). Combined with the group reported at
+    // creation, this tracks where every object lives over time.
+    struct AllocationSegmentGroupChange
+    {
+        UINT64 ObjectId;
+        INT64 Timestamp;
+        ApiObjectType ObjectType;
+        MemorySegmentGroup SegmentGroup;
     };
 
     // ------------------------------------------------------------------

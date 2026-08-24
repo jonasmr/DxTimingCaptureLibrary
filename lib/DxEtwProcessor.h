@@ -1139,7 +1139,9 @@ private:
     template <>
     void OnDxgkEvent_Start(EVENT_RECORD* record, DxgkDeviceAllocationArgs args)
     {
-        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
+        // Guard on the owning process, not the emitting one -- DeviceAllocation
+        // events are often emitted by the system process on the app's behalf.
+        if (!m_options.TrackApiObjects || args.processId != m_filterToProcessId)
             return;
 
         GetPerProcessData(static_cast<uint32_t>(args.processId))
@@ -1149,17 +1151,20 @@ private:
     template <>
     void OnDxgkEvent_DCStart(EVENT_RECORD* record, DxgkDeviceAllocationArgs args)
     {
-        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
+        // Guard on the owning process, not the emitting one.
+        if (!m_options.TrackApiObjects || args.processId != m_filterToProcessId)
             return;
 
         GetPerProcessData(static_cast<uint32_t>(args.processId))
             .StartNewDeviceAllocation(args.vidMmAlloc, args.vidMmGlobalAlloc, args.thunkAllocation, GetTimestamp(record));
     }
 
+
     template <>
     void OnDxgkEvent_Stop(EVENT_RECORD* record, DxgkDeviceAllocationArgs args)
     {
-        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
+        // Guard on the owning process, not the emitting one.
+        if (!m_options.TrackApiObjects || args.processId != m_filterToProcessId)
             return;
 
         GetPerProcessData(static_cast<uint32_t>(args.processId))
@@ -1170,7 +1175,8 @@ private:
     template <>
     void OnDxgkEvent_Start(EVENT_RECORD* record, DxgkAdapterAllocationArgs args)
     {
-        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
+        // Filter by the owning process (args.hProcessId), not the emitting process.
+        if (!m_options.TrackApiObjects || args.hProcessId != m_filterToProcessId)
             return;
 
         GetPerProcessData(static_cast<uint32_t>(args.hProcessId))
@@ -1183,7 +1189,8 @@ private:
     template <>
     void OnDxgkEvent_DCStart(EVENT_RECORD* record, DxgkAdapterAllocationArgs args)
     {
-        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
+        // Filter by the owning process (args.hProcessId), not the emitting process.
+        if (!m_options.TrackApiObjects || args.hProcessId != m_filterToProcessId)
             return;
 
         GetPerProcessData(static_cast<uint32_t>(args.hProcessId))
@@ -1196,7 +1203,8 @@ private:
     template <>
     void OnDxgkEvent_Stop(EVENT_RECORD* record, DxgkAdapterAllocationArgs args)
     {
-        if (!m_options.TrackApiObjects || record->EventHeader.ProcessId != m_filterToProcessId)
+        // Filter by the owning process (args.hProcessId), not the emitting process.
+        if (!m_options.TrackApiObjects || args.hProcessId != m_filterToProcessId)
             return;
 
         GetPerProcessData(static_cast<uint32_t>(args.hProcessId))
@@ -1333,7 +1341,9 @@ private:
     void HandleAllocationSegmentInfo(uint64_t dxgAdapter, uint64_t allocationGlobalHandle, uint32_t segmentId, uint64_t timestamp)
     {
         // Note: we don't filter by m_filterToProcessId here since these events always come from the system process
-        if (!m_options.TrackGpuTiming)
+        // Resolving which segment (and thus video vs. system memory) an allocation lives in is part of API-object
+        // residency tracking, not GPU timing - gate it the same way as the other residency handlers above.
+        if (!m_options.TrackApiObjects)
             return;
 
         auto& targetProcessData = GetPerProcessData(m_filterToProcessId);
