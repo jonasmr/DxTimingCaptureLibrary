@@ -11,9 +11,9 @@
 
 // Include ApiObjectCallbacks's full definition so `std::unique_ptr<ApiObjectCallbacks>` works
 // under clang-cl (clang's STL eagerly instantiates the deleter, which requires a complete type).
-#include <DxEtwLibrary/EtwCallbacks.h>
-#include <DxEtwLibrary/EtwDiagnostics.h>
-#include <DxEtwLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/EtwCallbacks.h>
+#include <DxTimingCaptureLibrary/EtwDiagnostics.h>
+#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
 
 using namespace DirectX::Etw;
 

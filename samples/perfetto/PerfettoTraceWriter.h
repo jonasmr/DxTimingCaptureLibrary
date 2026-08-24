@@ -7,7 +7,7 @@
 #include <string>
 
 // PerfettoTraceWriter owns the in-process Perfetto tracing session and turns the
-// DxEtwLibrary callbacks into Perfetto track events. The Perfetto SDK header is
+// DxTimingCaptureLibrary callbacks into Perfetto track events. The Perfetto SDK header is
 // large and is kept out of this header (PIMPL) so only PerfettoTraceWriter.cpp
 // pays its compile cost; the callback classes below just forward to it.
 class PerfettoTraceWriter

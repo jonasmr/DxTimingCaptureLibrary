@@ -6,13 +6,13 @@
 #include <optional>
 #include <unordered_map>
 
-#include <DxEtwLibrary/NoOpCallbacks.h>
+#include <DxTimingCaptureLibrary/NoOpCallbacks.h>
 
 #include "PerfettoTraceWriter.h"
 
 using namespace DirectX::Etw;
 
-// Callback implementations that forward the DxEtwLibrary events into a
+// Callback implementations that forward the DxTimingCaptureLibrary events into a
 // PerfettoTraceWriter. Each derives from the matching no-op base and overrides
 // only the methods that map onto the Perfetto timeline; the _Out_ id methods are
 // overridden so every id comes from the writer's single shared counter (which

@@ -21,9 +21,9 @@
 #include <string_view>
 #include <vector>
 
-#include <DxEtwLibrary/EtwDispatcher.h>
-#include <DxEtwLibrary/GpuTimingData.h>
-#include <DxEtwLibrary/MarkerOp.h>
+#include <DxTimingCaptureLibrary/EtwDispatcher.h>
+#include <DxTimingCaptureLibrary/GpuTimingData.h>
+#include <DxTimingCaptureLibrary/MarkerOp.h>
 
 #include "CsvTableWriter.h"
 #include "ProcessEtlFile.h"

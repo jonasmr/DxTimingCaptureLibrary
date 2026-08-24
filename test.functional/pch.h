@@ -16,7 +16,7 @@ using Microsoft::WRL::ComPtr;
 #include <stdexcept>
 #include <system_error>
 
-#include <DxEtwLibrary/EtwException.h>
+#include <DxTimingCaptureLibrary/EtwException.h>
 using DirectX::Etw::Errors::ThrowToolException;
 using DirectX::Etw::Errors::ThrowFailure;
 using DirectX::Etw::Errors::ThrowIf;

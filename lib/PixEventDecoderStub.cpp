@@ -9,7 +9,7 @@
 #include <cstdio>
 
 // Stub for PixEventDecoder::DecodeTimingBlock, the single decoder entry point
-// DxEtwLibrary uses. It returns an empty block, so PIX timing/marker events are
+// DxTimingCaptureLibrary uses. It returns an empty block, so PIX timing/marker events are
 // dropped while every other ETW category works normally. Set
 // UseStubPixEventDecoder=false and link the real PixEventDecoder.lib to restore
 // PIX decoding.
@@ -30,7 +30,7 @@ namespace PixEventDecoder
         if (!warned.exchange(true))
         {
             const char* const message =
-                "[DxEtwLibrary] PixEventDecoder::DecodeTimingBlock is a STUB; PIX "
+                "[DxTimingCaptureLibrary] PixEventDecoder::DecodeTimingBlock is a STUB; PIX "
                 "timing/marker events are not being decoded. Replace "
                 "lib/PixEventDecoderStub.cpp with the real PixEventDecoder.\n";
             OutputDebugStringA(message);

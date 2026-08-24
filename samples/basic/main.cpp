@@ -5,7 +5,7 @@
 
 #include <cstdlib> // strtoul
 
-#include <DxEtwLibrary/DxEtwLibrary.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureLibrary.h>
 
 #include "EtwConfig.h"
 #include "PrintfCallbacks.h"
@@ -127,9 +127,9 @@ int __cdecl main(int argc, char** argv)
     }
     printf("Observing process %lu\n", filterToProcessId);
 
-    g_etwSessionName = L"DxEtwLibrary.sample.session" + std::to_wstring(GetCurrentProcessId());
+    g_etwSessionName = L"DxTimingCaptureLibrary.sample.session" + std::to_wstring(GetCurrentProcessId());
 
-    DxEtwLibraryOptions libraryOptions{};
+    DxTimingCaptureLibraryOptions libraryOptions{};
     libraryOptions.TrackApiObjects = true;
 
     DxEtwEventCallbacks callbacks;

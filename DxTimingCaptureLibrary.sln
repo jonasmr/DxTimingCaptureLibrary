@@ -2,27 +2,27 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.6.11828.311 oobstable
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxEtwLibrary.lib", "lib\DxEtwLibrary.lib.vcxproj", "{BD5D2DF6-A412-48D8-A0C9-D220DCCB92D3}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxTimingCaptureLibrary.lib", "lib\DxTimingCaptureLibrary.lib.vcxproj", "{BD5D2DF6-A412-48D8-A0C9-D220DCCB92D3}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxEtwLibrary.sample", "samples\basic\DxEtwLibrary.sample.vcxproj", "{E0802F16-BC46-01A0-7406-78D3237CA78F}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxTimingCaptureLibrary.sample", "samples\basic\DxTimingCaptureLibrary.sample.vcxproj", "{E0802F16-BC46-01A0-7406-78D3237CA78F}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxEtwLibrary.test.unit", "test.unit\DxEtwLibrary.test.unit.vcxproj", "{9EC2C42D-E828-4494-BFB0-C44C193CE04F}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxTimingCaptureLibrary.test.unit", "test.unit\DxTimingCaptureLibrary.test.unit.vcxproj", "{9EC2C42D-E828-4494-BFB0-C44C193CE04F}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxEtwLibrary.test.functional", "test.functional\DxEtwLibrary.test.functional.vcxproj", "{4CC2E643-97DF-4F7D-9740-93FCCF974C7F}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxTimingCaptureLibrary.test.functional", "test.functional\DxTimingCaptureLibrary.test.functional.vcxproj", "{4CC2E643-97DF-4F7D-9740-93FCCF974C7F}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "googletest_main", "third_party\googletest\googletest_main.vcxproj", "{14629FEE-0926-4914-B534-87CD33CBC8CA}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxEtwLibrary.sample.perfetto", "samples\perfetto\DxEtwLibrary.sample.perfetto.vcxproj", "{D8F6B3A1-9C4E-5F7B-A023-4D5E6F7A8B90}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxTimingCaptureLibrary.sample.perfetto", "samples\perfetto\DxTimingCaptureLibrary.sample.perfetto.vcxproj", "{D8F6B3A1-9C4E-5F7B-A023-4D5E6F7A8B90}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxEtwLibrary.sample.perfetto.test.unit", "samples\perfetto\test.unit\DxEtwLibrary.sample.perfetto.test.unit.vcxproj", "{5B7C1D4E-2A63-49F8-8E10-6C9B3D2A7F41}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxTimingCaptureLibrary.sample.perfetto.test.unit", "samples\perfetto\test.unit\DxTimingCaptureLibrary.sample.perfetto.test.unit.vcxproj", "{5B7C1D4E-2A63-49F8-8E10-6C9B3D2A7F41}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxEtwLibrary.sample.perfetto.test.functional", "samples\perfetto\test.functional\DxEtwLibrary.sample.perfetto.test.functional.vcxproj", "{7E3A9C51-4B82-4D6A-9C37-1F8E5B2A6D93}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxTimingCaptureLibrary.sample.perfetto.test.functional", "samples\perfetto\test.functional\DxTimingCaptureLibrary.sample.perfetto.test.functional.vcxproj", "{7E3A9C51-4B82-4D6A-9C37-1F8E5B2A6D93}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "perfetto", "third_party\perfetto\perfetto.vcxproj", "{C7E5A2F0-8B3D-4E6A-9F12-3C4D5E6F7A80}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "imgui", "third_party\imgui\imgui.vcxproj", "{78F5BF88-35FC-4C4B-9C88-B8D03B6FDD7B}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxEtwLibrary.sample.memorymap", "samples\memorymap\DxEtwLibrary.sample.memorymap.vcxproj", "{D519BA6D-0853-4333-9A41-B126FAE0AB93}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxTimingCaptureLibrary.sample.memorymap", "samples\memorymap\DxTimingCaptureLibrary.sample.memorymap.vcxproj", "{D519BA6D-0853-4333-9A41-B126FAE0AB93}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

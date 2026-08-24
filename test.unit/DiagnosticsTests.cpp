@@ -12,10 +12,10 @@
 #include <external/d3d/d3d12.h>
 #include <external/d3d/D3D12Events.h>
 
-#include <DxEtwLibrary/TicksToNanoseconds.h>
-#include <DxEtwLibrary/GpuTimingData.h>
+#include <DxTimingCaptureLibrary/TicksToNanoseconds.h>
+#include <DxTimingCaptureLibrary/GpuTimingData.h>
 
-#include <DxEtwLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
 
 using namespace DirectX::Etw;
 

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Standalone build settings for DxEtwLibrary, extracted from the PIX tree.
+  Standalone build settings for DxTimingCaptureLibrary, extracted from the PIX tree.
 
   This file is the only thing that differs between a standalone build and an
   in-tree PIX build; the .vcxproj files reference the variables defined here and
@@ -34,16 +34,16 @@
   <PropertyGroup>
     <PixSrcRoot Condition="'$(PixSrcRoot)' == ''">B:\pix\src</PixSrcRoot>
     <ExternalRoot Condition="'$(ExternalRoot)' == ''">$(PixSrcRoot)\external</ExternalRoot>
-    <DxEtwLibraryRoot>$(MSBuildThisFileDirectory.TrimEnd('\'))</DxEtwLibraryRoot>
-    <GoogleTestPath>$(DxEtwLibraryRoot)\third_party\googletest</GoogleTestPath>
-    <PixEventDecoderPath>$(DxEtwLibraryRoot)\third_party\PixEventDecoder</PixEventDecoderPath>
-    <PerfettoPath>$(DxEtwLibraryRoot)\third_party\perfetto</PerfettoPath>
-    <ImguiPath>$(DxEtwLibraryRoot)\third_party\imgui</ImguiPath>
+    <DxTimingCaptureLibraryRoot>$(MSBuildThisFileDirectory.TrimEnd('\'))</DxTimingCaptureLibraryRoot>
+    <GoogleTestPath>$(DxTimingCaptureLibraryRoot)\third_party\googletest</GoogleTestPath>
+    <PixEventDecoderPath>$(DxTimingCaptureLibraryRoot)\third_party\PixEventDecoder</PixEventDecoderPath>
+    <PerfettoPath>$(DxTimingCaptureLibraryRoot)\third_party\perfetto</PerfettoPath>
+    <ImguiPath>$(DxTimingCaptureLibraryRoot)\third_party\imgui</ImguiPath>
     <!-- Vendored DirectX ETW manifest headers (D3D12Events.h, lddmcoreeventdefs.h)
          so <D3D12Events.h> / <lddmcoreeventdefs.h> resolve without a PIX checkout.
          Placed ahead of PixSrcRoot below; in a PIX build this is not on the
          include path and the real headers are used. -->
-    <EtwManifestPath>$(DxEtwLibraryRoot)\third_party\etw-manifest</EtwManifestPath>
+    <EtwManifestPath>$(DxTimingCaptureLibraryRoot)\third_party\etw-manifest</EtwManifestPath>
     <!-- true: compile the DecodeTimingBlock stub and skip the decoder reference.
          false: link the real PixEventDecoder.lib (e.g. an in-tree PIX build). -->
     <UseStubPixEventDecoder Condition="'$(UseStubPixEventDecoder)' == ''">true</UseStubPixEventDecoder>
@@ -61,7 +61,7 @@
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>UNICODE;_UNICODE;NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>
-        $(DxEtwLibraryRoot)\include;
+        $(DxTimingCaptureLibraryRoot)\include;
         $(EtwManifestPath);
         $(PixSrcRoot);
         $(ExternalRoot)\d3d;

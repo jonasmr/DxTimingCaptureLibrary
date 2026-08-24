@@ -6,7 +6,7 @@
 #include "EtlRecording.h"
 #include "SampleProcess.h"
 
-using namespace DxEtwLibraryTest;
+using namespace DxTimingCaptureLibraryTest;
 
 // Replays one recorded ETW trace through the sample's --etl mode. Every test sees
 // exactly the same events, so modes can be compared against each other rather than
@@ -33,7 +33,7 @@ protected:
 
     static void SetUpTestSuite()
     {
-        s_directory = std::filesystem::temp_directory_path() / "DxEtwLibrary.sample.perfetto.offline";
+        s_directory = std::filesystem::temp_directory_path() / "DxTimingCaptureLibrary.sample.perfetto.offline";
         std::error_code errorCode;
         std::filesystem::create_directories(s_directory, errorCode);
 

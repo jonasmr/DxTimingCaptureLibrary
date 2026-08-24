@@ -4,7 +4,7 @@
     <ProjectGuid>{7E3A9C51-4B82-4D6A-9C37-1F8E5B2A6D93}</ProjectGuid>
     <ConfigurationType>Application</ConfigurationType>
     <RootNamespace>WinPix</RootNamespace>
-    <TargetName>DxEtwLibrary.sample.perfetto.test.functional</TargetName>
+    <TargetName>DxTimingCaptureLibrary.sample.perfetto.test.functional</TargetName>
     <TestCode>true</TestCode>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -21,10 +21,10 @@
         $(GoogleTestPath)\googletest\include;
         $(PixEventDecoderPath)\include;
         $(PerfettoPath)\sdk;
-        $(DxEtwLibraryRoot)\samples\perfetto;
-        $(DxEtwLibraryRoot)\samples\perfetto\test.common;
-        $(DxEtwLibraryRoot)\samples\basic;
-        $(DxEtwLibraryRoot)\test.functional;
+        $(DxTimingCaptureLibraryRoot)\samples\perfetto;
+        $(DxTimingCaptureLibraryRoot)\samples\perfetto\test.common;
+        $(DxTimingCaptureLibraryRoot)\samples\basic;
+        $(DxTimingCaptureLibraryRoot)\test.functional;
         %(AdditionalIncludeDirectories);
       </AdditionalIncludeDirectories>
     </ClCompile>
@@ -39,17 +39,17 @@
     <ClCompile Include="OfflineReplayTests.cpp" />
     <ClCompile Include="EtlRecording.cpp" />
     <ClCompile Include="SampleProcess.cpp" />
-    <ClCompile Include="$(DxEtwLibraryRoot)\samples\perfetto\test.common\pch.cpp">
+    <ClCompile Include="$(DxTimingCaptureLibraryRoot)\samples\perfetto\test.common\pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <!-- The library's tests already have a D3D12 workload; it is shared rather than
          duplicated here. It carries its own pch.h, so it cannot use ours. -->
-    <ClCompile Include="$(DxEtwLibraryRoot)\test.functional\GpuWorkload.cpp">
+    <ClCompile Include="$(DxTimingCaptureLibraryRoot)\test.functional\GpuWorkload.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <!-- The trace reader is the only TU here that includes perfetto.h, which is
          large and not written for /permissive-. -->
-    <ClCompile Include="$(DxEtwLibraryRoot)\samples\perfetto\test.common\PerfettoTraceReader.cpp">
+    <ClCompile Include="$(DxTimingCaptureLibraryRoot)\samples\perfetto\test.common\PerfettoTraceReader.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ConformanceMode>false</ConformanceMode>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
@@ -58,13 +58,13 @@
   <ItemGroup>
     <ClInclude Include="EtlRecording.h" />
     <ClInclude Include="SampleProcess.h" />
-    <ClInclude Include="$(DxEtwLibraryRoot)\samples\perfetto\test.common\pch.h" />
-    <ClInclude Include="$(DxEtwLibraryRoot)\samples\perfetto\test.common\PerfettoTraceReader.h" />
-    <ClInclude Include="$(DxEtwLibraryRoot)\test.functional\GpuWorkload.h" />
+    <ClInclude Include="$(DxTimingCaptureLibraryRoot)\samples\perfetto\test.common\pch.h" />
+    <ClInclude Include="$(DxTimingCaptureLibraryRoot)\samples\perfetto\test.common\PerfettoTraceReader.h" />
+    <ClInclude Include="$(DxTimingCaptureLibraryRoot)\test.functional\GpuWorkload.h" />
   </ItemGroup>
   <ItemGroup>
     <!-- In a UsePixUtility build, EtwException.h resolves to PIX's
-         WinPix::ToolException (see DxEtwLibrary/EtwException.h), whose out-of-line
+         WinPix::ToolException (see DxTimingCaptureLibrary/EtwException.h), whose out-of-line
          symbols live in PixUtility.lib. A standalone build of the library uses the
          self-contained EtwException and does not need this reference. -->
     <ProjectReference Condition="'$(UsePixUtility)' == 'true'" Include="$(PixUtilityRoot)\lib\PixUtility.vcxproj">
@@ -79,12 +79,12 @@
     <ProjectReference Condition="'$(UseStubPixEventDecoder)' != 'true'" Include="$(PixEventDecoderPath)\lib\PixEventDecoder.lib.vcxproj">
       <Project>{750cf23a-1b4a-4f62-acb7-45fe8b78a7a7}</Project>
     </ProjectReference>
-    <ProjectReference Include="$(DxEtwLibraryRoot)\lib\DxEtwLibrary.lib.vcxproj">
+    <ProjectReference Include="$(DxTimingCaptureLibraryRoot)\lib\DxTimingCaptureLibrary.lib.vcxproj">
       <Project>{bd5d2df6-a412-48d8-a0c9-d220dccb92d3}</Project>
     </ProjectReference>
     <!-- The tests launch the sample, so it has to be built and sitting next to them,
          but there is nothing in it to link against. -->
-    <ProjectReference Include="$(DxEtwLibraryRoot)\samples\perfetto\DxEtwLibrary.sample.perfetto.vcxproj">
+    <ProjectReference Include="$(DxTimingCaptureLibraryRoot)\samples\perfetto\DxTimingCaptureLibrary.sample.perfetto.vcxproj">
       <Project>{d8f6b3a1-9c4e-5f7b-a023-4d5e6f7a8b90}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>

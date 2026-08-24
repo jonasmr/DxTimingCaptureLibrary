@@ -8,15 +8,15 @@
 
 #include <d3dcompiler.h>
 
-#include <DxEtwLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
 
 using namespace DirectX::Etw;
 
 // Internal library headers: the heap-classification tests at the bottom of this file drive a
 // D3D12ObjectProcessor directly rather than through a live D3D12 device. These headers are part
 // of the library's private implementation and expect the DirectX::Etw namespace to be in scope.
-#include <external/DxEtwLibrary/lib/D3D12ObjectProcessor.h>
-#include <external/DxEtwLibrary/lib/AllocationTracker.h>
+#include <lib/D3D12ObjectProcessor.h>
+#include <lib/AllocationTracker.h>
 
 #include "EtwSession.h"
 #include "RecordingApiObjectCallbacks.h"
@@ -624,7 +624,7 @@ TEST(D3D12ObjectTests, PipelineState_Compute)
 TEST(D3D12ObjectTests, ObjectName)
 {
     constexpr UINT64 DistinctiveWidth = 0x4E5F60;
-    const wchar_t* const ExpectedName = L"DxEtwLibraryFunctionalTestResource";
+    const wchar_t* const ExpectedName = L"DxTimingCaptureLibraryFunctionalTestResource";
 
     auto callbacks = std::make_unique<RecordingApiObjectCallbacks>();
     auto* recorder = callbacks.get();

@@ -1,4 +1,4 @@
-# DxEtwLibrary memory-map sample
+# DxTimingCaptureLibrary memory-map sample
 
 Draws two [WinDirStat](https://windirstat.net/)-style treemaps of a process's
 live D3D12 memory: **system memory (host RAM) on the left, video memory (VRAM)
@@ -6,7 +6,7 @@ on the right**. Each rectangle is a heap or resource, sized in proportion to its
 allocation and labelled with its name. It's a quick way to see *where* an app's
 resources actually live and watch them move as the app runs.
 
-It consumes the memory-location data DxEtwLibrary reports per object
+It consumes the memory-location data DxTimingCaptureLibrary reports per object
 (`ObjectPlacementInfo::ResidentSegmentGroup` and the
 `ResidencyEventCallbacks::OnAllocationSegmentGroupChanges` migration signal), so
 the two panels stay accurate even as allocations page between pools.
@@ -26,10 +26,10 @@ the two panels stay accurate even as allocations page between pools.
 ## Usage
 
 ```
-DxEtwLibrary.sample.memorymap --pid <id>        # observe a running process
-DxEtwLibrary.sample.memorymap --launch <exe>    # launch + capture from the start
-DxEtwLibrary.sample.memorymap --etl <path> --pid <id>   # replay a saved trace
-DxEtwLibrary.sample.memorymap --demo            # synthetic data, no GPU/ETW
+DxTimingCaptureLibrary.sample.memorymap --pid <id>        # observe a running process
+DxTimingCaptureLibrary.sample.memorymap --launch <exe>    # launch + capture from the start
+DxTimingCaptureLibrary.sample.memorymap --etl <path> --pid <id>   # replay a saved trace
+DxTimingCaptureLibrary.sample.memorymap --demo            # synthetic data, no GPU/ETW
 ```
 
 | Option | Meaning |

@@ -7,7 +7,7 @@
 #include <string_view>
 #include <vector>
 
-namespace DxEtwLibraryTest
+namespace DxTimingCaptureLibraryTest
 {
     // A slice the sample drew, with the name of the track it landed on. The writer
     // spreads overlapping spans across several lane tracks that share one name, so

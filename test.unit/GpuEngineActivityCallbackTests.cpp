@@ -10,8 +10,8 @@
 #include <external/d3d/d3d12.h>
 #include <external/d3d/D3D12Events.h>
 
-#include <DxEtwLibrary/DxEtwEventHandler.h>
-#include <DxEtwLibrary/EtwDispatcher.h>
+#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/EtwDispatcher.h>
 
 using namespace DirectX::Etw;
 
@@ -115,7 +115,7 @@ namespace
         DxEtwEventCallbacks callbacks{};
         callbacks.GpuEngineActivityCallbacks = &gpuEngineActivity;
 
-        DxEtwLibraryOptions options{};
+        DxTimingCaptureLibraryOptions options{};
         options.TrackGpuEngineActivity = TrackGpuEngineActivity;
 
         return DxEtwEventHandler::Create(1234u, options, callbacks, converter);

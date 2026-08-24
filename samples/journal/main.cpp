@@ -6,12 +6,12 @@
 // It starts a real-time ETW session on its own process, then deliberately records
 // a CopyBufferRegion that reads past the end of the source buffer. The D3D12
 // runtime rejects the copy, removes the command list, and writes the failure to
-// its journal, which it emits over ETW. DxEtwLibrary decodes that event and hands
+// its journal, which it emits over ETW. DxTimingCaptureLibrary decodes that event and hands
 // it to our callback, which prints it to the console.
 
 #include "pch.h"
 
-#include <DxEtwLibrary/DxEtwLibrary.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureLibrary.h>
 
 #include "EtwConfig.h"
 
@@ -102,9 +102,9 @@ int __cdecl main()
 {
     const DWORD processId = GetCurrentProcessId();
     const std::wstring sessionName =
-        L"DxEtwLibrary.sample.journal.session" + std::to_wstring(processId);
+        L"DxTimingCaptureLibrary.sample.journal.session" + std::to_wstring(processId);
 
-    DxEtwLibraryOptions libraryOptions{};
+    DxTimingCaptureLibraryOptions libraryOptions{};
 
     DxEtwEventCallbacks callbacks;
     callbacks.RuntimeFailureCallbacks = &g_runtimeFailureCallbacks;

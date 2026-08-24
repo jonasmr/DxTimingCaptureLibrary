@@ -3,9 +3,9 @@
 
 #pragma once
 
-// Public data types for DxEtwLibrary.
+// Public data types for DxTimingCaptureLibrary.
 //
-// Generally the callbacks from DxEtwLibrary try to use standard D3D12 or PIX data types.
+// Generally the callbacks from DxTimingCaptureLibrary try to use standard D3D12 or PIX data types.
 // The types in this file cover additional data that don't have standard header equivalents.
 
 #include <d3d12.h>

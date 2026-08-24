@@ -7,8 +7,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include <DxEtwLibrary/EventTypes.h>
-#include <DxEtwLibrary/Types.h>
+#include <DxTimingCaptureLibrary/EventTypes.h>
+#include <DxTimingCaptureLibrary/Types.h>
 
 namespace DirectX::Etw
 {

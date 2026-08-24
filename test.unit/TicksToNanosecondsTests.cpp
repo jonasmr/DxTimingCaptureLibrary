@@ -3,7 +3,7 @@
 
 #include "pch.h"
 
-#include <DxEtwLibrary/TicksToNanoseconds.h>
+#include <DxTimingCaptureLibrary/TicksToNanoseconds.h>
 
 using DirectX::Etw::TicksToNanoseconds;
 

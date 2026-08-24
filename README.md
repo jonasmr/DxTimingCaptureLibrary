@@ -1,6 +1,6 @@
-# DxEtwLibrary
+# DxTimingCaptureLibrary
 
-DxEtwLibrary is an in-process consumer of Windows ETW (Event Tracing for Windows)
+DxTimingCaptureLibrary is an in-process consumer of Windows ETW (Event Tracing for Windows)
 events that decodes and **correlates** Direct3D 12, DirectX graphics-kernel
 (DXGK), and PIX-runtime events into a usable model of an application's GPU work.
 A game engine (or any D3D12 app) can use it to understand its own runtime
@@ -52,11 +52,11 @@ ignored.
 ## The construction contract
 
 You construct a single `DxEtwEventHandler` (see
-[`include/DxEtwLibrary/DxEtwEventHandler.h`](include/DxEtwLibrary/DxEtwEventHandler.h)),
+[`include/DxTimingCaptureLibrary/DxEtwEventHandler.h`](include/DxTimingCaptureLibrary/DxEtwEventHandler.h)),
 supplying:
 
 - **Eight callback interfaces** (all required, see
-  [`EtwCallbacks.h`](include/DxEtwLibrary/EtwCallbacks.h)):
+  [`EtwCallbacks.h`](include/DxTimingCaptureLibrary/EtwCallbacks.h)):
   `ApiObjectCallbacks`, `PixCounterCallbacks`, `ResidencyEventCallbacks`,
   `PixEventCallbacks`, `MonitorEventCallbacks`, `GpuTimingsCallbacks`,
   `DxgkObjectCallbacks`, `PipelineStateEventCallbacks`.
@@ -84,7 +84,7 @@ command-queue id from `DxgkObjectCallbacks`) and feeds them into another (e.g.
 suppress its own, so the constructor rejects nulls with `E_INVALIDARG`.
 
 You don't have to implement everything by hand: derive from the no-op bases in
-[`NoOpCallbacks.h`](include/DxEtwLibrary/NoOpCallbacks.h) and override only the
+[`NoOpCallbacks.h`](include/DxTimingCaptureLibrary/NoOpCallbacks.h) and override only the
 methods you care about.
 
 **Callback contract:** callbacks run synchronously on your ETW consumer thread
@@ -97,8 +97,8 @@ event data) — so wrap that call in a `try`/`catch` (it runs inside ETW's
 ## Quickstart
 
 ```cpp
-#include <DxEtwLibrary/DxEtwLibrary.h>
-#include <DxEtwLibrary/NoOpCallbacks.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureLibrary.h>
+#include <DxTimingCaptureLibrary/NoOpCallbacks.h>
 
 // 1. Implement the categories you care about; no-op the rest.
 class MyApiObjects : public NoOpApiObjectCallbacks { /* override what you need */ };
@@ -133,7 +133,7 @@ auto handler = std::make_unique<DxEtwEventHandler>(
 
 A complete, runnable consumer — ETW session setup, provider enabling, the consume
 loop, and a real QPC converter — is in [`samples/basic/`](samples/basic). Run it
-with an optional target PID: `DxEtwLibrary.sample.exe [targetProcessId]`. A second
+with an optional target PID: `DxTimingCaptureLibrary.sample.exe [targetProcessId]`. A second
 sample, [`samples/perfetto/`](samples/perfetto), writes the same events into a
 [Perfetto](https://perfetto.dev) trace.
 
@@ -154,13 +154,13 @@ Under a real-time session you can lose events. Feed the trace's logfile header t
 `DiagnosticsSink`, and the cumulative totals are available via
 `GetLostEventStatistics()`. The sink also reports recoverable correlation problems
 (unmatched GPU markers, backwards clock calibration, dropped PSO compilations,
-...). See [`EtwDiagnostics.h`](include/DxEtwLibrary/EtwDiagnostics.h) for the full
+...). See [`EtwDiagnostics.h`](include/DxTimingCaptureLibrary/EtwDiagnostics.h) for the full
 `DiagnosticCode` catalog. Non-zero loss means some of the data below is missing.
 
 ## Building
 
 In-tree (within the PIX repo) the library builds with the rest of the solution as
-the `DxEtwLibrary` static library; the samples and tests are separate projects
+the `DxTimingCaptureLibrary` static library; the samples and tests are separate projects
 under [`samples/`](samples), [`test.unit/`](test.unit), and
 [`test.functional/`](test.functional). A sample with behaviour of its own carries
 its own tests next to it - see

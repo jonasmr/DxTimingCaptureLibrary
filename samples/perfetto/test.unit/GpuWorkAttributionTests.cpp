@@ -10,7 +10,7 @@
 #include "PerfettoTraceReader.h"
 #include "PerfettoTraceWriter.h"
 
-using namespace DxEtwLibraryTest;
+using namespace DxTimingCaptureLibraryTest;
 
 // Covers how the perfetto sample attributes GPU work to processes. The library
 // decodes GPU timing machine-wide, so everything here - which track a span lands
@@ -57,7 +57,7 @@ namespace
         {
             const auto* test = ::testing::UnitTest::GetInstance()->current_test_info();
             m_path = std::filesystem::temp_directory_path() /
-                (std::string("DxEtwLibrary.test.") + test->test_suite_name() + "." + test->name() + ".perfetto-trace");
+                (std::string("DxTimingCaptureLibrary.test.") + test->test_suite_name() + "." + test->name() + ".perfetto-trace");
             std::filesystem::remove(m_path);
         }
 

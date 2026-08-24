@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <atomic>
 
-#include <DxEtwLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
 #include <external/DirectStorage/dstorage_etw.h>
 
 using namespace DirectX::Etw;
@@ -237,11 +237,11 @@ void SimpleEtwSession::Begin()
     // Give every session instance a unique name so leftover state from a prior test
     // (or another instance) cannot collide on StartTrace.
     static std::atomic<unsigned long long> s_sessionCounter{ 0 };
-    m_sessionName = L"DxEtwLibrary.test.functional.session."
+    m_sessionName = L"DxTimingCaptureLibrary.test.functional.session."
         + std::to_wstring(GetCurrentProcessId())
         + L"." + std::to_wstring(++s_sessionCounter);
 
-    DxEtwLibraryOptions libraryOptions{};
+    DxTimingCaptureLibraryOptions libraryOptions{};
     libraryOptions.TrackApiObjects = true;
     libraryOptions.TrackGpuTiming = (m_gpuTimingsCallbacks != nullptr);
     libraryOptions.TrackGpuEngineActivity = (m_gpuEngineActivityCallbacks != nullptr);

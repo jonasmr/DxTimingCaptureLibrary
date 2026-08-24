@@ -10,7 +10,7 @@
 
 #include "PerfettoTraceReader.h"
 
-namespace DxEtwLibraryTest
+namespace DxTimingCaptureLibraryTest
 {
     namespace
     {

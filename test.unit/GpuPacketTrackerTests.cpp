@@ -3,7 +3,7 @@
 
 #include "pch.h"
 
-#include <DxEtwLibrary/GpuPacketTracker.h>
+#include <DxTimingCaptureLibrary/GpuPacketTracker.h>
 
 using namespace DirectX::Etw;
 

@@ -10,7 +10,7 @@
 #include <windows.h>
 #include <evntrace.h>
 
-#include <DxEtwLibrary/EtwException.h>
+#include <DxTimingCaptureLibrary/EtwException.h>
 
 // Helper classes to help interpret raw ETW data
 namespace DirectX::Etw

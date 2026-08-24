@@ -5,7 +5,7 @@
 
 #include "EtlRecording.h"
 
-#include <DxEtwLibrary/DxEtwLibrary.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureLibrary.h>
 
 // The sample's own session configuration, so a recorded trace holds exactly the
 // events a live run would have seen.
@@ -71,7 +71,7 @@ namespace
     };
 }
 
-namespace DxEtwLibraryTest
+namespace DxTimingCaptureLibraryTest
 {
     EtlRecording RecordGpuWorkToEtl(const std::filesystem::path& path, unsigned int seconds)
     {
@@ -82,7 +82,7 @@ namespace DxEtwLibraryTest
         std::error_code errorCode;
         std::filesystem::remove(path, errorCode);
 
-        const std::wstring sessionName = L"DxEtwLibrary.sample.perfetto.test.recording" + std::to_wstring(GetCurrentProcessId());
+        const std::wstring sessionName = L"DxTimingCaptureLibrary.sample.perfetto.test.recording" + std::to_wstring(GetCurrentProcessId());
         FileModeSession session(sessionName, path);
         if (!session.Started())
         {

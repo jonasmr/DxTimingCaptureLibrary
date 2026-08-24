@@ -12,7 +12,7 @@
 #include <external/d3d/d3d12.h>
 #include <external/d3d/D3D12Events.h>
 
-#include <DxEtwLibrary/EtwDispatcher.h>
+#include <DxTimingCaptureLibrary/EtwDispatcher.h>
 
 using namespace DirectX::Etw;
 

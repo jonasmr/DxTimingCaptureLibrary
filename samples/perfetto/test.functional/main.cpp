@@ -17,11 +17,11 @@ int __cdecl main(int argc, char** argv)
     unsigned int submitForSeconds = 0;
     for (int i = 1; i < argc; ++i)
     {
-        if (strcmp(argv[i], DxEtwLibraryTest::SubmitGpuWorkSwitch) == 0)
+        if (strcmp(argv[i], DxTimingCaptureLibraryTest::SubmitGpuWorkSwitch) == 0)
         {
             submitGpuWork = true;
         }
-        else if (strcmp(argv[i], DxEtwLibraryTest::SubmitGpuWorkSecondsSwitch) == 0 && i + 1 < argc)
+        else if (strcmp(argv[i], DxTimingCaptureLibraryTest::SubmitGpuWorkSecondsSwitch) == 0 && i + 1 < argc)
         {
             submitForSeconds = static_cast<unsigned int>(strtoul(argv[++i], nullptr, 10));
         }
@@ -34,13 +34,13 @@ int __cdecl main(int argc, char** argv)
             const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(submitForSeconds);
             do
             {
-                DxEtwLibraryTest::SubmitGpuWorkAndWait();
+                DxTimingCaptureLibraryTest::SubmitGpuWorkAndWait();
                 Sleep(16);
             } while (std::chrono::steady_clock::now() < deadline);
         }
         catch (...)
         {
-            return DxEtwLibraryTest::SubmitGpuWorkFailedExitCode;
+            return DxTimingCaptureLibraryTest::SubmitGpuWorkFailedExitCode;
         }
         return 0;
     }

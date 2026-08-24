@@ -12,9 +12,9 @@
 #include <tuple>
 #include <vector>
 
-#include <DxEtwLibrary/EtwDispatcher.h>
-#include <DxEtwLibrary/D3D12EtwEventStructs.h>
-#include <DxEtwLibrary/MarkerOp.h>
+#include <DxTimingCaptureLibrary/EtwDispatcher.h>
+#include <DxTimingCaptureLibrary/D3D12EtwEventStructs.h>
+#include <DxTimingCaptureLibrary/MarkerOp.h>
 
 #include "CsvTableWriter.h"
 

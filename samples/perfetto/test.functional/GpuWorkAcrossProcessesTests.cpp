@@ -6,7 +6,7 @@
 #include "GpuWorkload.h"
 #include "SampleProcess.h"
 
-using namespace DxEtwLibraryTest;
+using namespace DxTimingCaptureLibraryTest;
 
 // Runs the sample as its own process against a live ETW session and checks the
 // trace it writes. The unit tests next door drive the same policy through the

@@ -10,7 +10,7 @@
 #include <thread>
 #include <vector>
 
-#include <DxEtwLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
 #include "EtwSession.h"
 #include "GpuWorkload.h"
 
@@ -83,15 +83,15 @@ namespace
     // Runs this executable again in its GPU work mode. Returns the exit code alongside
     // the process id so the caller can tell "nothing was attributed to the child" apart
     // from "the child never managed to submit anything".
-    ChildProcessResult RunGpuWorkInChildProcess(DxEtwLibraryTest::GpuAdapterKind adapter)
+    ChildProcessResult RunGpuWorkInChildProcess(DxTimingCaptureLibraryTest::GpuAdapterKind adapter)
     {
         constexpr DWORD ChildTimeoutInMilliseconds = 60'000;
 
-        std::wstring commandLine = L"\"" + GetTestExecutablePath() + L"\" " + DxEtwLibraryTest::SubmitGpuWorkSwitchW;
-        if (adapter == DxEtwLibraryTest::GpuAdapterKind::Warp)
+        std::wstring commandLine = L"\"" + GetTestExecutablePath() + L"\" " + DxTimingCaptureLibraryTest::SubmitGpuWorkSwitchW;
+        if (adapter == DxTimingCaptureLibraryTest::GpuAdapterKind::Warp)
         {
             commandLine += L" ";
-            commandLine += DxEtwLibraryTest::WarpAdapterSwitchW;
+            commandLine += DxTimingCaptureLibraryTest::WarpAdapterSwitchW;
         }
 
         STARTUPINFOW startupInfo{};
@@ -179,7 +179,7 @@ namespace
 
 TEST(GpuEngineActivityTests, GpuWorkFromThisProcessIsAttributedToIt)
 {
-    const auto packets = CapturePacketsAround([] { DxEtwLibraryTest::SubmitGpuWorkAndWait(); });
+    const auto packets = CapturePacketsAround([] { DxTimingCaptureLibraryTest::SubmitGpuWorkAndWait(); });
 
     if (packets.empty())
     {
@@ -199,9 +199,9 @@ TEST(GpuEngineActivityTests, GpuWorkFromAnotherProcessIsAttributedToIt)
     const auto packets = CapturePacketsAround(
         // Launched after the session starts, so its contexts are created inside the
         // trace and its packets can be resolved back to it.
-        [&child] { child = RunGpuWorkInChildProcess(DxEtwLibraryTest::GpuAdapterKind::Default); });
+        [&child] { child = RunGpuWorkInChildProcess(DxTimingCaptureLibraryTest::GpuAdapterKind::Default); });
 
-    if (child.ExitCode == DxEtwLibraryTest::SubmitGpuWorkFailedExitCode)
+    if (child.ExitCode == DxTimingCaptureLibraryTest::SubmitGpuWorkFailedExitCode)
     {
         GTEST_SKIP() << "The child process could not submit GPU work in this environment.";
     }
@@ -224,7 +224,7 @@ TEST(GpuEngineActivityTests, GpuWorkFromAnotherProcessIsAttributedToIt)
 TEST(GpuEngineActivityTests, WarpWorkFromThisProcessArrivesOnTheLegacyPath)
 {
     const auto packets = CapturePacketsAround(
-        [] { DxEtwLibraryTest::SubmitGpuWorkAndWait(DxEtwLibraryTest::GpuAdapterKind::Warp); });
+        [] { DxTimingCaptureLibraryTest::SubmitGpuWorkAndWait(DxTimingCaptureLibraryTest::GpuAdapterKind::Warp); });
 
     if (packets.empty())
     {
@@ -244,9 +244,9 @@ TEST(GpuEngineActivityTests, WarpWorkFromAnotherProcessIsAttributedToIt)
 {
     ChildProcessResult child{};
     const auto packets = CapturePacketsAround(
-        [&child] { child = RunGpuWorkInChildProcess(DxEtwLibraryTest::GpuAdapterKind::Warp); });
+        [&child] { child = RunGpuWorkInChildProcess(DxTimingCaptureLibraryTest::GpuAdapterKind::Warp); });
 
-    if (child.ExitCode == DxEtwLibraryTest::SubmitGpuWorkFailedExitCode)
+    if (child.ExitCode == DxTimingCaptureLibraryTest::SubmitGpuWorkFailedExitCode)
     {
         GTEST_SKIP() << "The child process could not submit WARP work in this environment.";
     }

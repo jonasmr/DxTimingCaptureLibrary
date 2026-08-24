@@ -3,7 +3,7 @@
 
 #pragma once
 
-// Error-handling helpers for DxEtwLibrary.
+// Error-handling helpers for DxTimingCaptureLibrary.
 //
 // The library reports unrecoverable parsing/state errors by throwing. It exposes
 // the throwing helpers as Errors::ThrowToolException / ThrowFailure / ThrowIf.

@@ -9,7 +9,7 @@
 #include <set>
 #include <string>
 
-#include <DxEtwLibrary/EtwDispatcher.h>
+#include <DxTimingCaptureLibrary/EtwDispatcher.h>
 
 using namespace DirectX::Etw;
 

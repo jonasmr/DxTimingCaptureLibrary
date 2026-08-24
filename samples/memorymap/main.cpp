@@ -11,7 +11,7 @@
 
 #include <d3d11.h>
 
-#include <DxEtwLibrary/DxEtwLibrary.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureLibrary.h>
 
 #include "imgui.h"
 #include "backends/imgui_impl_win32.h"
@@ -82,7 +82,7 @@ namespace
 
     void CreateHandler(DWORD processId)
     {
-        DxEtwLibraryOptions options{};
+        DxTimingCaptureLibraryOptions options{};
         options.TrackApiObjects = true;
 
         DxEtwEventCallbacks callbacks{};
@@ -121,7 +121,7 @@ namespace
 
     bool StartLiveSession(DWORD processId)
     {
-        g_sessionName = L"DxEtwLibrary.memorymap.session" + std::to_wstring(GetCurrentProcessId());
+        g_sessionName = L"DxTimingCaptureLibrary.memorymap.session" + std::to_wstring(GetCurrentProcessId());
 
         CreateHandler(processId);
 
@@ -149,7 +149,7 @@ namespace
     // debugging. Stopped via StopLiveSession (same handle/name).
     bool StartRecordingSession(const std::wstring& etlFilePath)
     {
-        g_sessionName = L"DxEtwLibrary.memorymap.record" + std::to_wstring(GetCurrentProcessId());
+        g_sessionName = L"DxTimingCaptureLibrary.memorymap.record" + std::to_wstring(GetCurrentProcessId());
 
         EventTraceProperties properties{};
         properties->LogFileMode = EVENT_TRACE_FILE_MODE_SEQUENTIAL;
@@ -734,7 +734,7 @@ namespace
         RegisterClassExW(&windowClass);
 
         HWND hwnd = CreateWindowExW(
-            0, windowClass.lpszClassName, L"DxEtwLibrary - Heap & Resource Map (system | video)",
+            0, windowClass.lpszClassName, L"DxTimingCaptureLibrary - Heap & Resource Map (system | video)",
             WS_OVERLAPPEDWINDOW | WS_VISIBLE,
             CW_USEDEFAULT, CW_USEDEFAULT, 1100, 640,
             nullptr, nullptr, instance, nullptr);
@@ -802,16 +802,16 @@ namespace
     void PrintUsage()
     {
         wprintf(L"\n"
-            L"DxEtwLibrary memory-map sample.\n"
+            L"DxTimingCaptureLibrary memory-map sample.\n"
             L"\n"
             L"Draws two WinDirStat-style treemaps of a process's D3D12 heaps and\n"
             L"resources: system memory (host RAM) on the left, video memory (VRAM)\n"
             L"on the right. Placed resources nest inside their heap.\n"
             L"\n"
             L"Usage:\n"
-            L"  DxEtwLibrary.sample.memorymap --pid <id> [--dump] [--seconds <n>]\n"
-            L"  DxEtwLibrary.sample.memorymap --launch <exe> [--dump] [--seconds <n>]\n"
-            L"  DxEtwLibrary.sample.memorymap --etl <path> --pid <id> [--dump]\n"
+            L"  DxTimingCaptureLibrary.sample.memorymap --pid <id> [--dump] [--seconds <n>]\n"
+            L"  DxTimingCaptureLibrary.sample.memorymap --launch <exe> [--dump] [--seconds <n>]\n"
+            L"  DxTimingCaptureLibrary.sample.memorymap --etl <path> --pid <id> [--dump]\n"
             L"\n"
             L"  --pid <id>     Observe an already-running process.\n"
             L"  --launch <exe> Launch <exe> suspended and capture it from the start.\n"

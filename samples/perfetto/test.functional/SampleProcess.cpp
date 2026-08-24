@@ -14,7 +14,7 @@
 
 namespace
 {
-    constexpr wchar_t SampleExecutableName[] = L"DxEtwLibrary.sample.perfetto.exe";
+    constexpr wchar_t SampleExecutableName[] = L"DxTimingCaptureLibrary.sample.perfetto.exe";
 
     // How long to wait for the sample's session to appear before giving up on it.
     constexpr int SessionPollAttempts = 100;
@@ -49,7 +49,7 @@ namespace
 
         const auto* testInformation = ::testing::UnitTest::GetInstance()->current_test_info();
         const auto directory = std::filesystem::temp_directory_path() /
-            (std::string("DxEtwLibrary.sample.perfetto.") + testInformation->test_suite_name() + "." +
+            (std::string("DxTimingCaptureLibrary.sample.perfetto.") + testInformation->test_suite_name() + "." +
              testInformation->name() + "." + std::to_string(++runIndex));
 
         std::error_code errorCode;
@@ -80,7 +80,7 @@ namespace
 
     std::wstring SampleSessionName(unsigned long processId)
     {
-        return L"DxEtwLibrary.sample.perfetto.session" + std::to_wstring(processId);
+        return L"DxTimingCaptureLibrary.sample.perfetto.session" + std::to_wstring(processId);
     }
 
     bool EtwSessionExists(const std::wstring& sessionName)
@@ -164,7 +164,7 @@ namespace
     }
 }
 
-namespace DxEtwLibraryTest
+namespace DxTimingCaptureLibraryTest
 {
     SampleRun RunSample(
         const std::wstring& sampleArguments,

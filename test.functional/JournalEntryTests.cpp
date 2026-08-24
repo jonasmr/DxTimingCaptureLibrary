@@ -8,7 +8,7 @@
 #include <string_view>
 #include <vector>
 
-#include <DxEtwLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
 #include "EtwSession.h"
 
 using namespace DirectX::Etw;

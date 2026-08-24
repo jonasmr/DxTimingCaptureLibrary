@@ -2,9 +2,9 @@
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <ProjectGuid>{bd5d2df6-a412-48d8-a0c9-d220dccb92d3}</ProjectGuid>
-    <RootNamespace>DxEtwLibrary</RootNamespace>
+    <RootNamespace>DxTimingCaptureLibrary</RootNamespace>
     <ConfigurationType>StaticLibrary</ConfigurationType>
-    <TargetName>DxEtwLibrary</TargetName>
+    <TargetName>DxTimingCaptureLibrary</TargetName>
     <OutDir>$(OutDir)lib\</OutDir>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />

@@ -5,7 +5,7 @@
 
 #include <string_view>
 
-#include <DxEtwLibrary/Types.h>
+#include <DxTimingCaptureLibrary/Types.h>
 
 namespace DirectX::Etw
 {
@@ -181,7 +181,7 @@ public:
 };
 
 // What the GPU engines were doing, across every process on the machine rather
-// than just the traced one. Needs DxEtwLibraryOptions::TrackGpuEngineActivity
+// than just the traced one. Needs DxTimingCaptureLibraryOptions::TrackGpuEngineActivity
 // and a trace carrying the DxgKrnl provider.
 class GpuEngineActivityCallbacks
 {

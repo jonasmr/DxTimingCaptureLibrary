@@ -10,7 +10,7 @@
 #include <string_view>
 #include <vector>
 
-#include <DxEtwLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
 
 // The vendored DirectStorage event descriptors and payload layouts are used here to
 // synthesize the raw ETW records the handler decodes. This is exactly what a live

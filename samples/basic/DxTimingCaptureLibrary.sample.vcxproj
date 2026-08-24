@@ -3,7 +3,7 @@
   <PropertyGroup>
     <ProjectGuid>{E0802F16-BC46-01A0-7406-78D3237CA78F}</ProjectGuid>
     <ConfigurationType>Application</ConfigurationType>
-    <TargetName>DxEtwLibrary.sample</TargetName>
+    <TargetName>DxTimingCaptureLibrary.sample</TargetName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -33,7 +33,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- In a UsePixUtility build, EtwException.h resolves to PIX's
-         WinPix::ToolException (see DxEtwLibrary/EtwException.h), whose out-of-line
+         WinPix::ToolException (see DxTimingCaptureLibrary/EtwException.h), whose out-of-line
          symbols live in PixUtility.lib. A standalone build of the library uses the
          self-contained EtwException and does not need this reference. -->
     <ProjectReference Condition="'$(UsePixUtility)' == 'true'" Include="$(PixUtilityRoot)\lib\PixUtility.vcxproj">
@@ -42,7 +42,7 @@
     <ProjectReference Condition="'$(UseStubPixEventDecoder)' != 'true'" Include="$(PixEventDecoderPath)\lib\PixEventDecoder.lib.vcxproj">
       <Project>{750cf23a-1b4a-4f62-acb7-45fe8b78a7a7}</Project>
     </ProjectReference>
-    <ProjectReference Include="$(DxEtwLibraryRoot)\lib\DxEtwLibrary.lib.vcxproj">
+    <ProjectReference Include="$(DxTimingCaptureLibraryRoot)\lib\DxTimingCaptureLibrary.lib.vcxproj">
       <Project>{bd5d2df6-a412-48d8-a0c9-d220dccb92d3}</Project>
     </ProjectReference>
   </ItemGroup>

@@ -16,9 +16,9 @@
 #include "MarkerOp.h"
 #pragma warning(pop)
 
-#include <DxEtwLibrary/EtwDiagnostics.h>
-#include <DxEtwLibrary/EtwException.h>
-#include <DxEtwLibrary/TicksToNanoseconds.h>
+#include <DxTimingCaptureLibrary/EtwDiagnostics.h>
+#include <DxTimingCaptureLibrary/EtwException.h>
+#include <DxTimingCaptureLibrary/TicksToNanoseconds.h>
 
 namespace DirectX::Etw
 {

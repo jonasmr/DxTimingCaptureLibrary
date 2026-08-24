@@ -5,7 +5,7 @@
 
 #include <atomic>
 
-#include <DxEtwLibrary/DxEtwLibrary.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureLibrary.h>
 
 #include "MemoryModel.h"
 

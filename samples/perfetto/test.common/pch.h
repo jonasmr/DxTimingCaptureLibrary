@@ -20,7 +20,7 @@ using Microsoft::WRL::ComPtr;
 #include <system_error>
 #include <vector>
 
-#include <DxEtwLibrary/EtwException.h>
+#include <DxTimingCaptureLibrary/EtwException.h>
 using DirectX::Etw::Errors::ThrowToolException;
 using DirectX::Etw::Errors::ThrowFailure;
 using DirectX::Etw::Errors::ThrowIf;

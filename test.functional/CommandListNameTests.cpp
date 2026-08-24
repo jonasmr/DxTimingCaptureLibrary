@@ -10,7 +10,7 @@
 #include <thread>
 #include <vector>
 
-#include <DxEtwLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
 #include "EtwSession.h"
 
 using namespace DirectX::Etw;
@@ -115,7 +115,7 @@ namespace
 
 TEST(GpuTimingTests, NamedCommandListSurfacesOnCommandListName)
 {
-    constexpr wchar_t CommandListName[] = L"DxEtwLibrary.TestCommandList";
+    constexpr wchar_t CommandListName[] = L"DxTimingCaptureLibrary.TestCommandList";
     constexpr UINT64 BufferSizeInBytes = 256;
 
     auto callbacks = std::make_unique<RecordingGpuTimingsCallbacks>();

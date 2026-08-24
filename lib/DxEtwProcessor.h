@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include <DxEtwLibrary/NoOpCallbacks.h>
-#include <DxEtwLibrary/DxEtwEventHandler.h>
-#include <DxEtwLibrary/GpuPacketEvents.h>
+#include <DxTimingCaptureLibrary/NoOpCallbacks.h>
+#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/GpuPacketEvents.h>
 
 #include "DirectStorageProcessor.h"
 
@@ -14,7 +14,7 @@ namespace DirectX::Etw
 
 class DxEtwProcessor
 {
-    DxEtwLibraryOptions m_options;
+    DxTimingCaptureLibraryOptions m_options;
     bool m_mirrorGpuContextEventsToCpu; // When true, also emit GPU-context begin/end events on the CPU thread that emitted them
 
     // No-op fallbacks for any null callback slot. Must precede the pointers below,
@@ -72,7 +72,7 @@ class DxEtwProcessor
 
 public:
     DxEtwProcessor(
-        const DxEtwLibraryOptions& libraryOptions,
+        const DxTimingCaptureLibraryOptions& libraryOptions,
         bool mirrorGpuContextEventsToCpu,
         ApiObjectCallbacks* apiObjectCallbacks,
         PixCounterCallbacks* pixCounterCallbacks,

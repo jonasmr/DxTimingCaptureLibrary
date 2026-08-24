@@ -5,7 +5,7 @@
 
 #include <filesystem>
 
-namespace DxEtwLibraryTest
+namespace DxTimingCaptureLibraryTest
 {
     // An ETW trace recorded to a file so the sample can replay it with --etl. Recording
     // it here rather than checking one in keeps the fixture matched to the machine.

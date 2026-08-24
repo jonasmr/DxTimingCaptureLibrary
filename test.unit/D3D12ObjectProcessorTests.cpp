@@ -11,13 +11,13 @@
 #include <external/d3d/d3d12.h>
 #include <external/d3d/D3D12Events.h>
 
-#include <DxEtwLibrary/EtwCallbacks.h>
+#include <DxTimingCaptureLibrary/EtwCallbacks.h>
 
 // D3D12ObjectProcessor.h is an internal library header that uses DirectX::Etw names
 // unqualified, so open the namespace before including it.
 using namespace DirectX::Etw;
 
-#include <external/DxEtwLibrary/lib/D3D12ObjectProcessor.h>
+#include <lib/D3D12ObjectProcessor.h>
 
 // These tests drive D3D12ObjectProcessor directly with synthetic entries to exercise
 // the deferred/out-of-order correlation logic — the part a live ETW session cannot

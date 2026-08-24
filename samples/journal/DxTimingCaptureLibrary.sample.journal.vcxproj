@@ -1,9 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <ProjectGuid>{D519BA6D-0853-4333-9A41-B126FAE0AB93}</ProjectGuid>
+    <ProjectGuid>{1795E88B-6D92-4D38-90DB-4013F46F5169}</ProjectGuid>
     <ConfigurationType>Application</ConfigurationType>
-    <TargetName>DxEtwLibrary.sample.memorymap</TargetName>
+    <TargetName>DxTimingCaptureLibrary.sample.journal</TargetName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -14,20 +14,15 @@
       <AdditionalIncludeDirectories>
         %(AdditionalIncludeDirectories);
         $(PixEventDecoderPath)\include;
-        $(ImguiPath);
-        $(ImguiPath)\backends;
       </AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <EntryPointSymbol>wmainCRTStartup</EntryPointSymbol>
       <AdditionalDependencies>
         %(AdditionalDependencies);
-        onecore.lib;
-        uuid.lib;
-        d3d11.lib;
+        d3d12.lib;
         dxgi.lib;
-        d3dcompiler.lib;
+        uuid.lib;
       </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -39,14 +34,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EtwConfig.h" />
-    <ClInclude Include="MemoryMapCallbacks.h" />
-    <ClInclude Include="MemoryModel.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="Treemap.h" />
   </ItemGroup>
   <ItemGroup>
     <!-- In a UsePixUtility build, EtwException.h resolves to PIX's
-         WinPix::ToolException (see DxEtwLibrary/EtwException.h), whose out-of-line
+         WinPix::ToolException (see DxTimingCaptureLibrary/EtwException.h), whose out-of-line
          symbols live in PixUtility.lib. A standalone build of the library uses the
          self-contained EtwException and does not need this reference. -->
     <ProjectReference Condition="'$(UsePixUtility)' == 'true'" Include="$(PixUtilityRoot)\lib\PixUtility.vcxproj">
@@ -55,12 +47,16 @@
     <ProjectReference Condition="'$(UseStubPixEventDecoder)' != 'true'" Include="$(PixEventDecoderPath)\lib\PixEventDecoder.lib.vcxproj">
       <Project>{750cf23a-1b4a-4f62-acb7-45fe8b78a7a7}</Project>
     </ProjectReference>
-    <ProjectReference Include="$(DxEtwLibraryRoot)\lib\DxEtwLibrary.lib.vcxproj">
+    <ProjectReference Include="$(DxTimingCaptureLibraryRoot)\lib\DxTimingCaptureLibrary.lib.vcxproj">
       <Project>{bd5d2df6-a412-48d8-a0c9-d220dccb92d3}</Project>
-    </ProjectReference>
-    <ProjectReference Include="$(ImguiPath)\imgui.vcxproj">
-      <Project>{78f5bf88-35fc-4c4b-9c88-b8d03b6fdd7b}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ItemGroup Condition="'$(DxEtwStandaloneBuild)' == 'true'">
+    <PackageReference Include="Microsoft.Direct3D.DirectStorage" Version="1.3.0" GeneratePathProperty="true" PrivateAssets="all" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(DxEtwStandaloneBuild)' == 'true' and '$(DirectStorageSdk)' == ''">
+    <DirectStorageSdk>$(PkgMicrosoft_Direct3D_DirectStorage)</DirectStorageSdk>
+  </PropertyGroup>
+  <Import Project="$(DirectStorageSdk)\build\native\targets\Microsoft.Direct3D.DirectStorage.targets" Condition="Exists('$(DirectStorageSdk)\build\native\targets\Microsoft.Direct3D.DirectStorage.targets')" />
 </Project>

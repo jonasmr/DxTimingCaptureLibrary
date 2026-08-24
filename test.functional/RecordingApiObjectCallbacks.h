@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include <DxEtwLibrary/EtwCallbacks.h>
+#include <DxTimingCaptureLibrary/EtwCallbacks.h>
 
 using namespace DirectX::Etw;
 

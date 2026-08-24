@@ -5,7 +5,7 @@
 
 #include "SampleProcess.h"
 
-using namespace DxEtwLibraryTest;
+using namespace DxTimingCaptureLibraryTest;
 
 // The sample's command line and its handling of the ETW session it owns. Nothing
 // here captures anything, so these run anywhere and finish quickly.

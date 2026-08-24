@@ -3,7 +3,7 @@
 
 #pragma once
 
-namespace DxEtwLibraryTest
+namespace DxTimingCaptureLibraryTest
 {
     // Which adapter to run the workload on. Warp is a software adapter, so it is a
     // way to reach a scheduler path the machine's real GPU may not use.

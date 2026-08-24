@@ -1,12 +1,12 @@
-# DxEtwLibrary ETL processor sample
+# DxTimingCaptureLibrary ETL processor sample
 
 This sample reads a **saved ETW trace** (`.etl`) offline and reports on the GPU
-work recorded in it, using DxEtwLibrary's `EtwDispatcher` to decode D3D12 and
+work recorded in it, using DxTimingCaptureLibrary's `EtwDispatcher` to decode D3D12 and
 dxgkrnl events.
 
 This sample processes a trace that was captured earlier, complementing other
 samples (e.g. `basic` and `perfetto`) which consume a real-time session. It also
-works with more raw building blocks from DxEtwLibrary: it drives `EtwDispatcher`
+works with more raw building blocks from DxTimingCaptureLibrary: it drives `EtwDispatcher`
 with per-event handlers and correlates the events itself, instead of consuming
 the higher-level typed event callbacks that the `basic` sample uses.
 
@@ -31,7 +31,7 @@ point for writing your own trace analysis.
 ## Usage
 
 ```
-DxEtwLibrary.EtlProcessor --etl <path> --action <action> [options]
+DxTimingCaptureLibrary.EtlProcessor --etl <path> --action <action> [options]
 ```
 
 Options:
@@ -45,9 +45,9 @@ Options:
 Examples:
 
 ```
-DxEtwLibrary.EtlProcessor --etl capture.etl --action dumppids
-DxEtwLibrary.EtlProcessor --etl capture.etl --action dumphistorybuffers --pid 1234
-DxEtwLibrary.EtlProcessor --etl capture.etl --action dumpallocations
+DxTimingCaptureLibrary.EtlProcessor --etl capture.etl --action dumppids
+DxTimingCaptureLibrary.EtlProcessor --etl capture.etl --action dumphistorybuffers --pid 1234
+DxTimingCaptureLibrary.EtlProcessor --etl capture.etl --action dumpallocations
 ```
 
 To capture a trace to feed this sample, run the `basic` sample (or any ETW
@@ -56,7 +56,7 @@ swapped for a file-mode session.
 
 ## Building
 
-The project builds as part of the DxEtwLibrary solution. It references
-`DxEtwLibrary.lib` and, like the other samples, links `PixUtility` and
+The project builds as part of the DxTimingCaptureLibrary solution. It references
+`DxTimingCaptureLibrary.lib` and, like the other samples, links `PixUtility` and
 `PixEventDecoder` only when those are available (`UsePixUtility`); a standalone
-build uses DxEtwLibrary's self-contained fallbacks.
+build uses DxTimingCaptureLibrary's self-contained fallbacks.

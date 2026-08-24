@@ -6,7 +6,7 @@
 #include <evntcons.h>
 #include <vector>
 
-#include <DxEtwLibrary/EventData.h>
+#include <DxTimingCaptureLibrary/EventData.h>
 
 namespace
 {

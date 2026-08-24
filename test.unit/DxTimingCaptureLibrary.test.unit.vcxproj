@@ -1,10 +1,10 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <ProjectGuid>{5B7C1D4E-2A63-49F8-8E10-6C9B3D2A7F41}</ProjectGuid>
+    <ProjectGuid>{9ec2c42d-e828-4494-bfb0-c44c193ce04f}</ProjectGuid>
     <ConfigurationType>Application</ConfigurationType>
     <RootNamespace>WinPix</RootNamespace>
-    <TargetName>DxEtwLibrary.sample.perfetto.test.unit</TargetName>
+    <TargetName>DxTimingCaptureLibrary.test.unit</TargetName>
     <TestCode>true</TestCode>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -20,43 +20,43 @@
       <AdditionalIncludeDirectories>
         $(GoogleTestPath)\googletest\include;
         $(PixEventDecoderPath)\include;
-        $(PerfettoPath)\sdk;
-        $(DxEtwLibraryRoot)\samples\perfetto;
-        $(DxEtwLibraryRoot)\samples\perfetto\test.common;
+        $(DxTimingCaptureLibraryRoot);
         %(AdditionalIncludeDirectories);
       </AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>%(AdditionalDependencies);ws2_32.lib;</AdditionalDependencies>
+      <AdditionalDependencies>
+        %(AdditionalDependencies);
+        d3d12.lib;
+        dxgi.lib;
+        onecore.lib;
+        uuid.lib;
+      </AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="D3D12ObjectProcessorTests.cpp" />
+    <ClCompile Include="DiagnosticsTests.cpp" />
+    <ClCompile Include="DirectStorageTests.cpp" />
+    <ClCompile Include="DxgkDmaPacketDecoderTests.cpp" />
+    <ClCompile Include="GpuEngineActivityCallbackTests.cpp" />
+    <ClCompile Include="GpuPacketTrackerTests.cpp" />
+    <ClCompile Include="NullContractTests.cpp" />
+    <ClCompile Include="EventDataTests.cpp" />
+    <ClCompile Include="RuntimeFailureTests.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="GpuWorkAttributionTests.cpp" />
-    <ClCompile Include="$(DxEtwLibraryRoot)\samples\perfetto\test.common\pch.cpp">
+    <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
-    <!-- The sample's writer is tested in place rather than duplicated. It and the
-         trace reader are the only TUs that include perfetto.h, which is large and
-         not written for /permissive-. -->
-    <ClCompile Include="$(DxEtwLibraryRoot)\samples\perfetto\PerfettoTraceWriter.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <ConformanceMode>false</ConformanceMode>
-      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
-    </ClCompile>
-    <ClCompile Include="$(DxEtwLibraryRoot)\samples\perfetto\test.common\PerfettoTraceReader.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <ConformanceMode>false</ConformanceMode>
-      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
-    </ClCompile>
+    <ClCompile Include="TicksToNanosecondsTests.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="$(DxEtwLibraryRoot)\samples\perfetto\test.common\pch.h" />
-    <ClInclude Include="$(DxEtwLibraryRoot)\samples\perfetto\test.common\PerfettoTraceReader.h" />
+    <ClInclude Include="NoOpCallbacks.h" />
+    <ClInclude Include="pch.h" />
   </ItemGroup>
   <ItemGroup>
     <!-- In a UsePixUtility build, EtwException.h resolves to PIX's
-         WinPix::ToolException (see DxEtwLibrary/EtwException.h), whose out-of-line
+         WinPix::ToolException (see DxTimingCaptureLibrary/EtwException.h), whose out-of-line
          symbols live in PixUtility.lib. A standalone build of the library uses the
          self-contained EtwException and does not need this reference. -->
     <ProjectReference Condition="'$(UsePixUtility)' == 'true'" Include="$(PixUtilityRoot)\lib\PixUtility.vcxproj">
@@ -68,11 +68,8 @@
     <ProjectReference Condition="'$(UseStubPixEventDecoder)' != 'true'" Include="$(PixEventDecoderPath)\lib\PixEventDecoder.lib.vcxproj">
       <Project>{750cf23a-1b4a-4f62-acb7-45fe8b78a7a7}</Project>
     </ProjectReference>
-    <ProjectReference Include="$(DxEtwLibraryRoot)\lib\DxEtwLibrary.lib.vcxproj">
+    <ProjectReference Include="$(DxTimingCaptureLibraryRoot)\lib\DxTimingCaptureLibrary.lib.vcxproj">
       <Project>{bd5d2df6-a412-48d8-a0c9-d220dccb92d3}</Project>
-    </ProjectReference>
-    <ProjectReference Include="$(PerfettoPath)\perfetto.vcxproj">
-      <Project>{c7e5a2f0-8b3d-4e6a-9f12-3c4d5e6f7a80}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -29,13 +29,13 @@
 #include <wrl\wrappers\corewrappers.h>
 using Microsoft::WRL::ComPtr;
 
-#include <DxEtwLibrary/EtwDiagnostics.h>
-#include <DxEtwLibrary/EtwException.h>
+#include <DxTimingCaptureLibrary/EtwDiagnostics.h>
+#include <DxTimingCaptureLibrary/EtwException.h>
 
 using DirectX::Etw::Errors::ThrowToolException;
 using DirectX::Etw::Errors::ThrowFailure;
 using DirectX::Etw::Errors::ThrowIf;
 
-#include <DxEtwLibrary/EtwDispatcher.h>
+#include <DxTimingCaptureLibrary/EtwDispatcher.h>
 
 using namespace DirectX::Etw;

@@ -5,9 +5,9 @@
 
 #include <memory>
 
-#include <DxEtwLibrary/EtwDispatcher.h>
-#include <DxEtwLibrary/EtwCallbacks.h>
-#include <DxEtwLibrary/EtwDiagnostics.h>
+#include <DxTimingCaptureLibrary/EtwDispatcher.h>
+#include <DxTimingCaptureLibrary/EtwCallbacks.h>
+#include <DxTimingCaptureLibrary/EtwDiagnostics.h>
 
 namespace DirectX::Etw
 {
@@ -35,7 +35,7 @@ struct DxEtwEventCallbacks
 
 // Filters to help make the ETW processing code a bit more efficient. Try to make these match the callbacks
 // you set in DxEtwEventCallbacks, but setting them to true will give you maximal data.
-struct DxEtwLibraryOptions
+struct DxTimingCaptureLibraryOptions
 {
     // Track D3D12 API-object lifetimes (resources, heaps, command queues,
     // descriptor heaps, command allocators, pipeline states, object names) and
@@ -99,19 +99,19 @@ class DxEtwEventHandler
     std::unique_ptr<DxEtwProcessor> m_processor;
     std::unique_ptr<EtwDispatcher<DxEtwProcessor>> m_dispatcher;
 
-    DxEtwLibraryOptions m_options;
+    DxTimingCaptureLibraryOptions m_options;
     bool m_mirrorGpuContextEventsToCpu;
     DWORD m_filterToProcessId;
 
 public:
     static std::unique_ptr<DxEtwEventHandler> Create(
         DWORD filterToProcessId,
-        const DxEtwLibraryOptions& libraryOptions,
+        const DxTimingCaptureLibraryOptions& libraryOptions,
         const DxEtwEventCallbacks& callbacks);
 
     static std::unique_ptr<DxEtwEventHandler> Create(
         DWORD filterToProcessId,
-        const DxEtwLibraryOptions& libraryOptions,
+        const DxTimingCaptureLibraryOptions& libraryOptions,
         const DxEtwEventCallbacks& callbacks,
         const TimestampConverter& timestampConverter,
         const PixEventConfig& pixEventConfig = {});
@@ -119,7 +119,7 @@ public:
     // Prefer to use Create() but using the constructor will work.
     DxEtwEventHandler(
         DWORD filterToProcessId,
-        const DxEtwLibraryOptions& libraryOptions,
+        const DxTimingCaptureLibraryOptions& libraryOptions,
         const DxEtwEventCallbacks& callbacks,
         const PixEventConfig& pixEventConfig,
         const TimestampConverter* timestampConverter);

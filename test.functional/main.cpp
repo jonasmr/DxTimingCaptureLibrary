@@ -11,16 +11,16 @@ int __cdecl main(int argc, char** argv)
 {
     // Relaunched by GpuEngineActivityTests to produce GPU work from a second process.
     bool submitGpuWork = false;
-    auto adapter = DxEtwLibraryTest::GpuAdapterKind::Default;
+    auto adapter = DxTimingCaptureLibraryTest::GpuAdapterKind::Default;
     for (int i = 1; i < argc; ++i)
     {
-        if (strcmp(argv[i], DxEtwLibraryTest::SubmitGpuWorkSwitch) == 0)
+        if (strcmp(argv[i], DxTimingCaptureLibraryTest::SubmitGpuWorkSwitch) == 0)
         {
             submitGpuWork = true;
         }
-        else if (strcmp(argv[i], DxEtwLibraryTest::WarpAdapterSwitch) == 0)
+        else if (strcmp(argv[i], DxTimingCaptureLibraryTest::WarpAdapterSwitch) == 0)
         {
-            adapter = DxEtwLibraryTest::GpuAdapterKind::Warp;
+            adapter = DxTimingCaptureLibraryTest::GpuAdapterKind::Warp;
         }
     }
 
@@ -28,11 +28,11 @@ int __cdecl main(int argc, char** argv)
     {
         try
         {
-            DxEtwLibraryTest::SubmitGpuWorkAndWait(adapter);
+            DxTimingCaptureLibraryTest::SubmitGpuWorkAndWait(adapter);
         }
         catch (...)
         {
-            return DxEtwLibraryTest::SubmitGpuWorkFailedExitCode;
+            return DxTimingCaptureLibraryTest::SubmitGpuWorkFailedExitCode;
         }
         return 0;
     }

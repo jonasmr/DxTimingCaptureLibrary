@@ -536,7 +536,7 @@ public:
     void OnDiagnostic(DiagnosticSeverity severity, DiagnosticCode code, std::wstring_view message) override
     {
         const wchar_t* severityText = severity == DiagnosticSeverity::Error ? L"ERROR" : L"WARNING";
-        wprintf(L"[DxEtwLibrary %ls] (code %d) %.*ls\n", severityText, (int)code, (int)message.size(), message.data());
+        wprintf(L"[DxTimingCaptureLibrary %ls] (code %d) %.*ls\n", severityText, (int)code, (int)message.size(), message.data());
     }
 };
 

@@ -11,7 +11,7 @@
 #include <map>
 #include <optional>
 
-#include <DxEtwLibrary/DxEtwLibrary.h>
+#include <DxTimingCaptureLibrary/DxTimingCaptureLibrary.h>
 
 #include "EtwConfig.h"               // shared with the basic sample (samples/basic/)
 #include "PerfettoCallbacks.h"
@@ -140,7 +140,7 @@ int __cdecl wmain(int argc, wchar_t** argv)
 {
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);
 
-    // Usage: DxEtwLibrary.sample.perfetto.exe [targetProcessId|all] [seconds] [--all-categories] [--no-other-processes] [--etl <path>]
+    // Usage: DxTimingCaptureLibrary.sample.perfetto.exe [targetProcessId|all] [seconds] [--all-categories] [--no-other-processes] [--etl <path>]
     // No targetProcessId means machine-wide: every D3D12 process gets its own tracks.
     std::optional<DWORD> targetProcessId;
     unsigned int runSeconds = 0;
@@ -236,7 +236,7 @@ int __cdecl wmain(int argc, wchar_t** argv)
         printf("Observing all processes (%s), writing dxetw.perfetto-trace\n", categories.c_str());
     }
 
-    g_etwSessionName = L"DxEtwLibrary.sample.perfetto.session" + std::to_wstring(GetCurrentProcessId());
+    g_etwSessionName = L"DxTimingCaptureLibrary.sample.perfetto.session" + std::to_wstring(GetCurrentProcessId());
 
     auto writer = std::make_unique<PerfettoTraceWriter>("dxetw.perfetto-trace", captureAllCategories);
     if (targetProcessId)
@@ -244,7 +244,7 @@ int __cdecl wmain(int argc, wchar_t** argv)
         writer->MarkProcessDetailed(*targetProcessId);
     }
 
-    DxEtwLibraryOptions libraryOptions{};
+    DxTimingCaptureLibraryOptions libraryOptions{};
     // Object tracking is scoped to a single process, so it needs a target.
     libraryOptions.TrackApiObjects = targetProcessId.has_value();
     libraryOptions.TrackGpuTiming = true;

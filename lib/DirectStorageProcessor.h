@@ -8,8 +8,8 @@
 #include <unordered_map>
 
 #include <external/DirectStorage/dstorage_etw.h>
-#include <DxEtwLibrary/EtwCallbacks.h>
-#include <DxEtwLibrary/DxEtwEventHandler.h> // TimestampConverter
+#include <DxTimingCaptureLibrary/EtwCallbacks.h>
+#include <DxTimingCaptureLibrary/DxEtwEventHandler.h> // TimestampConverter
 
 namespace DirectX::Etw
 {

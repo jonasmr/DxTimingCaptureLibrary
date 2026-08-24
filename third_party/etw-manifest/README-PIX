@@ -14,6 +14,6 @@ directory on the include path and uses the real headers instead.
       The DXGK / LDDMCore provider GUID, keyword flags, and the event-id
       constants the dispatcher uses. These values come from the DXGK ETW manifest
       LDDMCore.man, which ships with GPUView (Windows Performance Toolkit). Only
-      the values DxEtwLibrary references are included; if the dispatcher
-      (include/DxEtwLibrary/EtwDispatcher.h) handles a new DXGK event, add its
+      the values DxTimingCaptureLibrary references are included; if the dispatcher
+      (include/DxTimingCaptureLibrary/EtwDispatcher.h) handles a new DXGK event, add its
       EventX_value here.

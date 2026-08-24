@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include <DxEtwLibrary/DxgkEtwEventStructs.h>
-#include <DxEtwLibrary/GpuPacketTracker.h>
-#include <DxEtwLibrary/GpuTimingData.h>
+#include <DxTimingCaptureLibrary/DxgkEtwEventStructs.h>
+#include <DxTimingCaptureLibrary/GpuPacketTracker.h>
+#include <DxTimingCaptureLibrary/GpuTimingData.h>
 
 namespace DirectX::Etw
 {

@@ -15,8 +15,8 @@
 #include <thread>
 #include <vector>
 
-#include <DxEtwLibrary/DxEtwEventHandler.h>
-#include <DxEtwLibrary/TicksToNanoseconds.h>
+#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/TicksToNanoseconds.h>
 
 #include "EtwSession.h"
 #include "RecordingDirectStorageCallbacks.h"
@@ -320,7 +320,7 @@ TEST(DirectStorageFunctional, SingleReadWorkloadTimestampsAreBoundedAndOrdered)
 {
     constexpr uint64_t readOffset = 256;
     constexpr uint32_t readSize = 512;
-    const char* queueName = "DxEtwLibrary Functional Single Read Queue";
+    const char* queueName = "DxTimingCaptureLibrary Functional Single Read Queue";
 
     TempFile sourceFile(1024);
 
@@ -430,7 +430,7 @@ TEST(DirectStorageFunctional, MultipleReadsOnOneQueueCorrelateWithIncreasingEnqu
 {
     struct PlannedRead { uint64_t Offset; uint32_t Size; };
     constexpr std::array<PlannedRead, 4> reads{ { {0, 128}, {256, 128}, {512, 128}, {768, 128} } };
-    const char* queueName = "DxEtwLibrary Functional Multi Read Queue";
+    const char* queueName = "DxTimingCaptureLibrary Functional Multi Read Queue";
 
     TempFile sourceFile(1024);
 
@@ -530,7 +530,7 @@ TEST(DirectStorageFunctional, MultipleReadsOnOneQueueCorrelateWithIncreasingEnqu
 // Reads against two different files must correlate to the right, distinct fileId and path.
 TEST(DirectStorageFunctional, ReadsCorrelateToTheCorrectFileAcrossMultipleFiles)
 {
-    const char* queueName = "DxEtwLibrary Functional Multi File Queue";
+    const char* queueName = "DxTimingCaptureLibrary Functional Multi File Queue";
 
     TempFile fileA(512, 0x11);
     TempFile fileB(512, 0x77);
@@ -603,8 +603,8 @@ TEST(DirectStorageFunctional, ReadsCorrelateToTheCorrectFileAcrossMultipleFiles)
 // the correct, distinct queueId.
 TEST(DirectStorageFunctional, ReadsAndSubmitsCorrelateToTheCorrectQueueAcrossMultipleQueues)
 {
-    const char* queueNameNormal = "DxEtwLibrary Functional Queue Normal";
-    const char* queueNameHigh = "DxEtwLibrary Functional Queue High";
+    const char* queueNameNormal = "DxTimingCaptureLibrary Functional Queue Normal";
+    const char* queueNameHigh = "DxTimingCaptureLibrary Functional Queue High";
 
     TempFile sourceFile(1024);
 
@@ -685,7 +685,7 @@ TEST(DirectStorageFunctional, ReadsAndSubmitsCorrelateToTheCorrectQueueAcrossMul
 // right index and status-array identity, and complete no earlier than the read they follow.
 TEST(DirectStorageFunctional, StatusNotificationsAtMultipleIndicesCorrelate)
 {
-    const char* queueName = "DxEtwLibrary Functional Multi Status Queue";
+    const char* queueName = "DxTimingCaptureLibrary Functional Multi Status Queue";
 
     TempFile sourceFile(1024);
 
@@ -775,7 +775,7 @@ TEST(DirectStorageFunctional, StatusNotificationsAtMultipleIndicesCorrelate)
 // that created the factory/queue nor the ETW consumer thread.
 TEST(DirectStorageFunctional, EnqueueThreadIdReflectsTheEnqueuingThread)
 {
-    const char* queueName = "DxEtwLibrary Functional Cross Thread Queue";
+    const char* queueName = "DxTimingCaptureLibrary Functional Cross Thread Queue";
 
     TempFile sourceFile(1024);
 
@@ -848,7 +848,7 @@ TEST(DirectStorageFunctional, EnqueueThreadIdReflectsTheEnqueuingThread)
 // handle value the test used.
 TEST(DirectStorageFunctional, SetEventHandlesAreCorrelated)
 {
-    const char* queueName = "DxEtwLibrary Functional Set Event Queue";
+    const char* queueName = "DxTimingCaptureLibrary Functional Set Event Queue";
 
     TempFile sourceFile(1024);
 
@@ -916,7 +916,7 @@ TEST(DirectStorageFunctional, MultipleFenceSignalsCorrelateByValue)
         GTEST_SKIP() << "No D3D12 device available to create a fence";
     }
 
-    const char* queueName = "DxEtwLibrary Functional Multi Fence Queue";
+    const char* queueName = "DxTimingCaptureLibrary Functional Multi Fence Queue";
     constexpr std::array<uint64_t, 3> fenceValues{ 1, 2, 3 };
 
     TempFile sourceFile(1024);
@@ -1005,7 +1005,7 @@ TEST(DirectStorageFunctional, MultipleFenceSignalsCorrelateByValue)
 // synthesized-name paths, and verifies the copied bytes.
 TEST(DirectStorageFunctional, MemorySourceReadCorrelatesWithSynthesizedFileName)
 {
-    const char* queueName = "DxEtwLibrary Functional Memory Source Queue";
+    const char* queueName = "DxTimingCaptureLibrary Functional Memory Source Queue";
     constexpr uint32_t size = 512;
 
     std::vector<uint8_t> source(size);
@@ -1126,7 +1126,7 @@ TEST(DirectStorageFunctional, NamesDisabledYieldsEmptyQueueName)
 // DirectStorage's own codec; the CPU decompression path needs no device.
 TEST(DirectStorageFunctional, GDeflateCompressedReadReportsCompressionType)
 {
-    const char* queueName = "DxEtwLibrary Functional GDeflate Queue";
+    const char* queueName = "DxTimingCaptureLibrary Functional GDeflate Queue";
     constexpr uint32_t uncompressedSize = 64 * 1024;
 
     // A compressible, deterministic buffer.
@@ -1214,7 +1214,7 @@ TEST(DirectStorageFunctional, GDeflateCompressedReadReportsCompressionType)
 // rather than assumed; a trailing set-event is submitted only as a drain handle to wait on.
 TEST(DirectStorageFunctional, AutoSubmittedFlagIsTrueWhenQueueFillsToCapacity)
 {
-    const char* queueName = "DxEtwLibrary Functional Auto Submit Queue";
+    const char* queueName = "DxTimingCaptureLibrary Functional Auto Submit Queue";
     constexpr uint32_t size = 64;
 
     std::vector<uint8_t> source(size);

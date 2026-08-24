@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <DxEtwLibrary/TicksToNanoseconds.h>
+#include <DxTimingCaptureLibrary/TicksToNanoseconds.h>
 
 // Converts the session's raw QPC tick timestamps to nanoseconds. Same converter
 // the basic sample uses; see samples/basic/PrintfCallbacks.h.

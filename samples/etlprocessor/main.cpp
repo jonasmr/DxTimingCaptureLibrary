@@ -15,12 +15,12 @@ namespace
     {
         std::wcout <<
             L"\n"
-            L"DxEtwLibrary ETL processor sample.\n"
+            L"DxTimingCaptureLibrary ETL processor sample.\n"
             L"\n"
             L"Reads a saved ETW trace (.etl) and reports GPU work in it using\n"
-            L"DxEtwLibrary's EtwDispatcher.\n"
+            L"DxTimingCaptureLibrary's EtwDispatcher.\n"
             L"\n"
-            L"Usage: DxEtwLibrary.EtlProcessor --etl <path> --action <action> [options]\n"
+            L"Usage: DxTimingCaptureLibrary.EtlProcessor --etl <path> --action <action> [options]\n"
             L"\n"
             L"Actions:\n"
             L"  dumppids            List every process that created a D3D12 device.\n"

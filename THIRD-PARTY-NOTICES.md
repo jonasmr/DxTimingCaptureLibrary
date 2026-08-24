@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-DxEtwLibrary is licensed under the MIT License (see `LICENSE`). It incorporates
+DxTimingCaptureLibrary is licensed under the MIT License (see `LICENSE`). It incorporates
 or depends on the following third-party material.
 
 ## WinPixEventRuntime decoder headers
@@ -8,7 +8,7 @@ or depends on the following third-party material.
 Vendored under `third_party/PixEventDecoder/include/` (see its `README-PIX`):
 
 - `DecodedPixEventTypes.h` — `PixEventType` / `PixCpuEvent` and related decoded
-  types, used by `include/DxEtwLibrary/Types.h` and `EtwCallbacks.h` (part of the
+  types, used by `include/DxTimingCaptureLibrary/Types.h` and `EtwCallbacks.h` (part of the
   public API).
 - `PixEventDecoder.h` — declares `PixEventDecoder::DecodeTimingBlock`.
 

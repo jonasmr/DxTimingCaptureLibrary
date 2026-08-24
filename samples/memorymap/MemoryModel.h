@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include <DxEtwLibrary/Types.h>
+#include <DxTimingCaptureLibrary/Types.h>
 
 #include "Treemap.h"
 

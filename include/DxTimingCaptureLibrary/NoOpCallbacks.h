@@ -8,7 +8,7 @@
 
 #include <atomic>
 
-#include <DxEtwLibrary/EtwCallbacks.h>
+#include <DxTimingCaptureLibrary/EtwCallbacks.h>
 
 namespace DirectX::Etw
 {

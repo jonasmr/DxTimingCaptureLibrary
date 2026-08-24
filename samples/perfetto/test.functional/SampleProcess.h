@@ -8,7 +8,7 @@
 
 #include "PerfettoTraceReader.h"
 
-namespace DxEtwLibraryTest
+namespace DxTimingCaptureLibraryTest
 {
     struct SampleRun
     {

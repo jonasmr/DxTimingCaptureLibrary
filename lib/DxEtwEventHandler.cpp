@@ -5,9 +5,9 @@
 
 #include <PixEventDecoder.h>
 
-#include <DxEtwLibrary/D3D12EtwEventStructs.h>
-#include <DxEtwLibrary/EventTypes.h>
-#include <DxEtwLibrary/GpuTimingData.h>
+#include <DxTimingCaptureLibrary/D3D12EtwEventStructs.h>
+#include <DxTimingCaptureLibrary/EventTypes.h>
+#include <DxTimingCaptureLibrary/GpuTimingData.h>
 
 #include "D3D12ObjectProcessor.h"
 
@@ -16,8 +16,8 @@
 #include "AdapterTracker.h"
 #include "MonitorTracker.h"
 
-#include <DxEtwLibrary/DxEtwEventHandler.h>
-#include <DxEtwLibrary/QpcTimestampConverter.h>
+#include <DxTimingCaptureLibrary/DxEtwEventHandler.h>
+#include <DxTimingCaptureLibrary/QpcTimestampConverter.h>
 
 #include "PerProcessData.h"
 
@@ -39,7 +39,7 @@ namespace DirectX::Etw
 
 std::unique_ptr<DxEtwEventHandler> DxEtwEventHandler::Create(
     DWORD filterToProcessId,
-    const DxEtwLibraryOptions& libraryOptions,
+    const DxTimingCaptureLibraryOptions& libraryOptions,
     const DxEtwEventCallbacks& callbacks)
 {
     return std::make_unique<DxEtwEventHandler>(filterToProcessId, libraryOptions, callbacks, PixEventConfig{}, nullptr);
@@ -47,7 +47,7 @@ std::unique_ptr<DxEtwEventHandler> DxEtwEventHandler::Create(
 
 std::unique_ptr<DxEtwEventHandler> DxEtwEventHandler::Create(
     DWORD filterToProcessId,
-    const DxEtwLibraryOptions& libraryOptions,
+    const DxTimingCaptureLibraryOptions& libraryOptions,
     const DxEtwEventCallbacks& callbacks,
     const TimestampConverter& timestampConverter,
     const PixEventConfig& pixEventConfig)
@@ -57,7 +57,7 @@ std::unique_ptr<DxEtwEventHandler> DxEtwEventHandler::Create(
 
 DxEtwEventHandler::DxEtwEventHandler(
     DWORD filterToProcessId,
-    const DxEtwLibraryOptions& libraryOptions,
+    const DxTimingCaptureLibraryOptions& libraryOptions,
     const DxEtwEventCallbacks& callbacks,
     const PixEventConfig& pixEventConfig,
     const TimestampConverter* timestampConverter)

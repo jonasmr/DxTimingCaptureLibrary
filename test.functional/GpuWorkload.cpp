@@ -7,10 +7,10 @@
 
 namespace
 {
-    ComPtr<ID3D12Device> CreateDevice(DxEtwLibraryTest::GpuAdapterKind adapter)
+    ComPtr<ID3D12Device> CreateDevice(DxTimingCaptureLibraryTest::GpuAdapterKind adapter)
     {
         ComPtr<IDXGIAdapter> warpAdapter;
-        if (adapter == DxEtwLibraryTest::GpuAdapterKind::Warp)
+        if (adapter == DxTimingCaptureLibraryTest::GpuAdapterKind::Warp)
         {
             ComPtr<IDXGIFactory4> factory;
             ThrowFailure(CreateDXGIFactory1(IID_PPV_ARGS(&factory)));
@@ -53,7 +53,7 @@ namespace
     }
 }
 
-namespace DxEtwLibraryTest
+namespace DxTimingCaptureLibraryTest
 {
     void SubmitGpuWorkAndWait(GpuAdapterKind adapter)
     {
