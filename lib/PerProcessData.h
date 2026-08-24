@@ -1349,24 +1349,46 @@ public:
         m_pixEventStore.AddPixEvent(threadId, contextId, std::move(entry));
     }
 
-    void ProcessPendingSubmissions(TimestampConverter const* timestampConverter, AdapterTracker* adapters, DxgkContexts* dxgContexts, GpuTimingsCallbacks* gpuTimingsCallbacks, PixEventCallbacks* pixEventCallbacks, bool ignoreMissingPixEvents, DiagnosticsSink* diagnosticsSink)
+    void ProcessPendingSubmissions(TimestampConverter const* timestampConverter, AdapterTracker* adapters, DxgkContexts* dxgContexts, GpuTimingsCallbacks* gpuTimingsCallbacks, PixEventCallbacks* pixEventCallbacks, bool endOfTrace, DiagnosticsSink* diagnosticsSink)
     {
         // Iterate over all submissions currently tracked and ask each one to try and write out
         // its gpu event payload.  Submissions must be processed in order. If a submission is
         // not ready the loop exits early.
+        //
+        // There is no later retry at the end of the trace, so keep going past a
+        // submission that never became ready rather than discarding the ones behind it.
         size_t processedSubmissions = 0;
+        size_t unfinishedSubmissions = 0;
         for (auto& submission : m_submissions)
         {
-            bool processed = submission.TryWriteGpuEvents(timestampConverter, adapters, dxgContexts, &m_pixEventStore, m_processId, &m_commandListInstances, &m_commandQueueInstances, &m_commandListToIds, gpuTimingsCallbacks, pixEventCallbacks, ignoreMissingPixEvents, diagnosticsSink);
+            bool processed = submission.TryWriteGpuEvents(timestampConverter, adapters, dxgContexts, &m_pixEventStore, m_processId, &m_commandListInstances, &m_commandQueueInstances, &m_commandListToIds, gpuTimingsCallbacks, pixEventCallbacks, endOfTrace, diagnosticsSink);
             if (processed)
             {
                 processedSubmissions++;
+            }
+            else if (endOfTrace)
+            {
+                unfinishedSubmissions++;
             }
             else
             {
                 // The submission was not ready to process, so exit the loop.
                 break;
             }
+        }
+
+        if (endOfTrace)
+        {
+            if (unfinishedSubmissions != 0)
+            {
+                diagnosticsSink->OnDiagnostic(
+                    DiagnosticSeverity::Warning,
+                    DiagnosticCode::CommandListExecutionsUnfinishedAtEndOfTrace,
+                    L"Command list executions were still waiting on events that never arrived when the trace ended. Their GPU timing data is missing.");
+            }
+
+            m_submissions.clear();
+            return;
         }
 
         // Erase all processed submissions in one go

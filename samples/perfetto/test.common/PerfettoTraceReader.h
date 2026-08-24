@@ -16,6 +16,15 @@ namespace DxEtwLibraryTest
     {
         std::string TrackName;
         std::string Name;
+
+        // Perfetto's clock, not ETW's: the writer re-bases every event onto the SDK
+        // clock domain, so only durations and distances between slices mean anything.
+        uint64_t BeginNs = 0;
+
+        // Equal to BeginNs for an instant, and for a slice whose end went missing.
+        uint64_t EndNs = 0;
+
+        uint64_t DurationNs() const { return EndNs > BeginNs ? EndNs - BeginNs : 0; }
     };
 
     struct ParsedTrace
@@ -42,6 +51,14 @@ namespace DxEtwLibraryTest
         size_t CountTracksContaining(std::string_view fragment) const;
 
         std::vector<TraceSlice> SlicesOnTracksContaining(std::string_view fragment) const;
+
+        // How much time the trace spans, earliest slice to latest. A capture that
+        // ran for a few seconds should not produce much more than that.
+        uint64_t TimeExtentNs() const;
+
+        // Every distinct track name, one per line, for a failure message that has to
+        // say what the trace did contain.
+        std::string TrackNames() const;
     };
 
     // Decodes a .perfetto-trace file far enough to see which tracks exist and what

@@ -23,6 +23,7 @@
         $(PerfettoPath)\sdk;
         $(DxEtwLibraryRoot)\samples\perfetto;
         $(DxEtwLibraryRoot)\samples\perfetto\test.common;
+        $(DxEtwLibraryRoot)\samples\basic;
         $(DxEtwLibraryRoot)\test.functional;
         %(AdditionalIncludeDirectories);
       </AdditionalIncludeDirectories>
@@ -33,7 +34,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="CommandLineTests.cpp" />
     <ClCompile Include="GpuWorkAcrossProcessesTests.cpp" />
+    <ClCompile Include="OfflineReplayTests.cpp" />
+    <ClCompile Include="EtlRecording.cpp" />
     <ClCompile Include="SampleProcess.cpp" />
     <ClCompile Include="$(DxEtwLibraryRoot)\samples\perfetto\test.common\pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
@@ -52,6 +56,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="EtlRecording.h" />
     <ClInclude Include="SampleProcess.h" />
     <ClInclude Include="$(DxEtwLibraryRoot)\samples\perfetto\test.common\pch.h" />
     <ClInclude Include="$(DxEtwLibraryRoot)\samples\perfetto\test.common\PerfettoTraceReader.h" />

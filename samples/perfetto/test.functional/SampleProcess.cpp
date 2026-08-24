@@ -41,13 +41,16 @@ namespace
         return std::filesystem::path(std::wstring(path, lengthInCharacters));
     }
 
-    // One directory per test, because the sample writes its trace to a fixed name
-    // relative to its working directory.
+    // One directory per run, because the sample writes its trace to a fixed name
+    // relative to its working directory and a test may run it more than once.
     std::filesystem::path WorkingDirectoryForCurrentTest()
     {
+        static int runIndex = 0;
+
         const auto* testInformation = ::testing::UnitTest::GetInstance()->current_test_info();
         const auto directory = std::filesystem::temp_directory_path() /
-            (std::string("DxEtwLibrary.sample.perfetto.") + testInformation->test_suite_name() + "." + testInformation->name());
+            (std::string("DxEtwLibrary.sample.perfetto.") + testInformation->test_suite_name() + "." +
+             testInformation->name() + "." + std::to_string(++runIndex));
 
         std::error_code errorCode;
         std::filesystem::remove_all(directory, errorCode);
@@ -74,6 +77,11 @@ namespace
             return reinterpret_cast<EVENT_TRACE_PROPERTIES*>(Storage.data());
         }
     };
+
+    std::wstring SampleSessionName(unsigned long processId)
+    {
+        return L"DxEtwLibrary.sample.perfetto.session" + std::to_wstring(processId);
+    }
 
     bool EtwSessionExists(const std::wstring& sessionName)
     {
@@ -117,31 +125,26 @@ namespace
         ThrowIf(file.Value == INVALID_HANDLE_VALUE, HRESULT_FROM_WIN32(GetLastError()), L"Could not create the sample's output file");
         return file;
     }
-}
 
-namespace DxEtwLibraryTest
-{
-    SampleRun RunSample(
-        const std::wstring& sampleArguments,
-        unsigned int captureSeconds,
-        const std::function<void()>& workDuringCapture)
+    std::filesystem::path SamplePath()
     {
-        SampleRun run;
+        const auto path = TestExecutablePath().parent_path() / SampleExecutableName;
+        ThrowIf(!std::filesystem::exists(path), E_FAIL, L"The perfetto sample was not built next to the tests");
+        return path;
+    }
 
-        const auto workingDirectory = WorkingDirectoryForCurrentTest();
-        const auto samplePath = TestExecutablePath().parent_path() / SampleExecutableName;
-        ThrowIf(!std::filesystem::exists(samplePath), E_FAIL, L"The perfetto sample was not built next to the tests");
-
-        const auto outputPath = workingDirectory / L"sample-output.txt";
-        UniqueHandle outputFile = CreateInheritableOutputFile(outputPath);
-
+    PROCESS_INFORMATION LaunchSample(
+        const std::wstring& sampleArguments,
+        const std::filesystem::path& workingDirectory,
+        HANDLE outputFile)
+    {
         STARTUPINFOW startupInformation{};
         startupInformation.cb = sizeof(startupInformation);
         startupInformation.dwFlags = STARTF_USESTDHANDLES;
-        startupInformation.hStdOutput = outputFile.Value;
-        startupInformation.hStdError = outputFile.Value;
+        startupInformation.hStdOutput = outputFile;
+        startupInformation.hStdError = outputFile;
 
-        std::wstring commandLine = L"\"" + samplePath.wstring() + L"\" " + sampleArguments + L" " + std::to_wstring(captureSeconds);
+        std::wstring commandLine = L"\"" + SamplePath().wstring() + L"\" " + sampleArguments;
 
         PROCESS_INFORMATION processInformation{};
         ThrowIf(!CreateProcessW(
@@ -157,11 +160,33 @@ namespace DxEtwLibraryTest
                     &processInformation),
                 HRESULT_FROM_WIN32(GetLastError()),
                 L"Could not launch the perfetto sample");
+        return processInformation;
+    }
+}
+
+namespace DxEtwLibraryTest
+{
+    SampleRun RunSample(
+        const std::wstring& sampleArguments,
+        unsigned int captureSeconds,
+        const std::function<void()>& workDuringCapture)
+    {
+        SampleRun run;
+
+        const auto workingDirectory = WorkingDirectoryForCurrentTest();
+        const auto outputPath = workingDirectory / L"sample-output.txt";
+        UniqueHandle outputFile = CreateInheritableOutputFile(outputPath);
+
+        PROCESS_INFORMATION processInformation = LaunchSample(
+            sampleArguments + L" " + std::to_wstring(captureSeconds),
+            workingDirectory,
+            outputFile.Value);
 
         UniqueHandle process{ processInformation.hProcess };
         UniqueHandle mainThread{ processInformation.hThread };
+        run.ProcessId = processInformation.dwProcessId;
 
-        const std::wstring sessionName = L"DxEtwLibrary.sample.perfetto.session" + std::to_wstring(processInformation.dwProcessId);
+        const std::wstring sessionName = SampleSessionName(processInformation.dwProcessId);
 
         // The sample's stdout is block-buffered into a file, so its banner says nothing
         // about how far along it is. Its ETW session appearing does.
@@ -189,8 +214,7 @@ namespace DxEtwLibraryTest
         {
             TerminateProcess(process.Value, 1);
             WaitForSingleObject(process.Value, 5000);
-            // A killed sample never stops its session, and the orphan starves every
-            // session started after it.
+            // A killed sample never stops its session, and the orphan starves later ones.
             StopEtwSession(sessionName);
             ADD_FAILURE() << "The perfetto sample did not stop on its own within " << exitWaitMs << "ms";
         }
@@ -205,6 +229,36 @@ namespace DxEtwLibraryTest
         }
 
         return run;
+    }
+
+    SampleInvocation RunSampleToCompletion(const std::wstring& sampleArguments)
+    {
+        SampleInvocation invocation;
+
+        const auto workingDirectory = WorkingDirectoryForCurrentTest();
+        const auto outputPath = workingDirectory / L"sample-output.txt";
+        UniqueHandle outputFile = CreateInheritableOutputFile(outputPath);
+
+        PROCESS_INFORMATION processInformation = LaunchSample(sampleArguments, workingDirectory, outputFile.Value);
+        UniqueHandle process{ processInformation.hProcess };
+        UniqueHandle mainThread{ processInformation.hThread };
+
+        ThrowIf(WaitForSingleObject(process.Value, 60 * 1000) != WAIT_OBJECT_0, E_FAIL, L"The perfetto sample did not exit");
+        GetExitCodeProcess(process.Value, &invocation.ExitCode);
+        invocation.Output = ReadFileText(outputPath);
+
+        const auto tracePath = workingDirectory / L"dxetw.perfetto-trace";
+        if (std::filesystem::exists(tracePath))
+        {
+            invocation.Trace = ReadPerfettoTrace(tracePath.string());
+        }
+
+        return invocation;
+    }
+
+    bool SampleSessionExists(unsigned long sampleProcessId)
+    {
+        return EtwSessionExists(SampleSessionName(sampleProcessId));
     }
 
     GpuWorkChildProcess::GpuWorkChildProcess(unsigned int seconds)

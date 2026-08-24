@@ -52,6 +52,10 @@ namespace DirectX::Etw
 
         // The ETW session reported that whole buffers were lost.
         BuffersLost,
+
+        // Command list executions were still waiting on events that never arrived
+        // when the trace ended, so their GPU timing data is missing.
+        CommandListExecutionsUnfinishedAtEndOfTrace,
     };
 
     // DiagnosticsSink: this is the interface you can optionally implement, to be told

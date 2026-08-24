@@ -198,12 +198,12 @@ private:
         return perProcessData.first->second;
     }
 
-    void ProcessPendingSubmissions(bool ignoreMissingPixEvents)
+    void ProcessPendingSubmissions(bool endOfTrace)
     {
         // Loop all processes and process any pending submissions
         for (auto& processEntry : m_perProcessData)
         {
-            processEntry.second.ProcessPendingSubmissions(m_timestampConverter, &m_adapters, &m_dxgkContexts, m_gpuTimingsCallbacks, m_pixEventCallbacks, ignoreMissingPixEvents, m_diagnosticsSink);
+            processEntry.second.ProcessPendingSubmissions(m_timestampConverter, &m_adapters, &m_dxgkContexts, m_gpuTimingsCallbacks, m_pixEventCallbacks, endOfTrace, m_diagnosticsSink);
         }
     }
 
@@ -786,10 +786,13 @@ private:
     template <>
     void OnD3D12Event_Info(EVENT_RECORD* record, D3D12HistoryBufferCompletionArgs args)
     {
-        // HW scheduling uses a HW Queue instead of the broadcast context.
-        // Everything else is the same so reuse the existing History buffer handler.
-        HandleWriteHistoryBuffer(
-            record,
+        // Hardware scheduling reports completion against a hardware queue handle, which
+        // is only unique within a process. Broadcasting it the way the Dxgk path does
+        // would let a colliding handle elsewhere swallow the buffer, permanently
+        // stalling that process's submissions.
+        GetPerProcessData(record).UpdateHistoryBuffers(
+            &m_dxgkContexts,
+            record->EventHeader.TimeStamp.QuadPart,
             args.hwQueueHandle,
             args.renderCbSequence,
             args.precision,
@@ -887,6 +890,8 @@ private:
             args.historyBuffer);
     }
 
+    // Dxgk context handles are global, and the event is not reliably raised in the
+    // submitting process, so every process is offered the buffer.
     void HandleWriteHistoryBuffer(
         EVENT_RECORD* record,
         uint64_t context,

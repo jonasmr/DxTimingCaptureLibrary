@@ -8,6 +8,7 @@
 #include "pch.h"
 
 #include <cstdlib>
+#include <map>
 #include <optional>
 
 #include <DxEtwLibrary/DxEtwLibrary.h>
@@ -17,6 +18,47 @@
 #include "PerfettoTraceWriter.h"
 
 using namespace DirectX::Etw;
+
+namespace
+{
+    const wchar_t* DiagnosticName(DiagnosticCode code)
+    {
+        switch (code)
+        {
+        case DiagnosticCode::GpuEndEventWithoutBeginEvent: return L"GPU end event without a begin event";
+        case DiagnosticCode::CommandListExecutionMissingQueue: return L"command list execution with no command queue";
+        case DiagnosticCode::TimestampEndBeforeStart: return L"end timestamp before start timestamp";
+        case DiagnosticCode::ClockCalibrationCpuWentBackwards: return L"clock calibration CPU went backwards";
+        case DiagnosticCode::ClockCalibrationGpuWentBackwards: return L"clock calibration GPU went backwards";
+        case DiagnosticCode::PipelineStateCompilationStartWithoutObjectId: return L"pipeline state compilation start without an object id";
+        case DiagnosticCode::PipelineStateCompilationEndWithoutStart: return L"pipeline state compilation end without a start";
+        case DiagnosticCode::EventsLost: return L"ETW events lost";
+        case DiagnosticCode::BuffersLost: return L"ETW buffers lost";
+        case DiagnosticCode::CommandListExecutionsUnfinishedAtEndOfTrace: return L"command list executions unfinished at end of trace";
+        }
+        return L"unknown diagnostic";
+    }
+
+    // Counts rather than prints - a busy machine reports thousands of these.
+    class CountingDiagnosticsSink final : public DiagnosticsSink
+    {
+        std::map<DiagnosticCode, size_t> m_counts;
+
+    public:
+        void OnDiagnostic(DiagnosticSeverity, DiagnosticCode code, std::wstring_view) override
+        {
+            ++m_counts[code];
+        }
+
+        void PrintSummary() const
+        {
+            for (const auto& [code, count] : m_counts)
+            {
+                std::printf("Diagnostic: %ls (%zu)\n", DiagnosticName(code), count);
+            }
+        }
+    };
+}
 
 static std::wstring g_etwSessionName;
 static std::wstring g_etlFilePath; // when non-empty, consume this .etl offline instead of a live session
@@ -222,6 +264,9 @@ int __cdecl wmain(int argc, wchar_t** argv)
     callbacks.PipelineStateEventCallbacks = &pipelineStateEventCallbacks;
     callbacks.GpuEngineActivityCallbacks = &gpuEngineActivityCallbacks;
 
+    CountingDiagnosticsSink diagnosticsSink;
+    callbacks.DiagnosticsSink = &diagnosticsSink;
+
     g_dxEtwEventHandler = DxEtwEventHandler::Create(targetProcessId.value_or(0), libraryOptions, callbacks, timestampConverter);
 
     if (offline)
@@ -269,6 +314,7 @@ int __cdecl wmain(int argc, wchar_t** argv)
     }
 
     writer->Finish();
+    diagnosticsSink.PrintSummary();
     printf("Done\n");
     return 0;
 }

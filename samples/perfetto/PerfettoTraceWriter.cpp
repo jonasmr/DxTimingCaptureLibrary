@@ -6,8 +6,12 @@
 #include <windows.h>
 #include <tlhelp32.h>
 
+#include <fcntl.h>
+#include <io.h>
+#include <sys/stat.h>
+
 #include <cstdio>
-#include <fstream>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -37,6 +41,7 @@ namespace
 struct PerfettoTraceWriter::Impl
 {
     std::string outputPath;
+    int outputFile = -1;
     bool captureAllCategories = false; // when false, only GPU Queue work + API Markers
     std::unique_ptr<perfetto::TracingSession> session;
 
@@ -300,7 +305,11 @@ PerfettoTraceWriter::PerfettoTraceWriter(std::string outputPath, bool captureAll
     perfetto::TrackEvent::Register();
 
     perfetto::TraceConfig cfg;
-    cfg.add_buffers()->set_size_kb(64 * 1024); // 64 MB ring buffer
+    // Staging only - perfetto drains this into the output file as it fills. Buffering a
+    // whole trace here would wrap and evict the track descriptors written at the start.
+    cfg.add_buffers()->set_size_kb(64 * 1024);
+    cfg.set_write_into_file(true);
+    cfg.set_file_write_period_ms(250);
     // Track events intern their event/track names into per-sequence incremental
     // state. With a ring buffer, once the capture exceeds the buffer size the old
     // packets that defined those interned names get overwritten, and later packets
@@ -319,8 +328,27 @@ PerfettoTraceWriter::PerfettoTraceWriter(std::string outputPath, bool captureAll
     te.set_disable_incremental_timestamps(true);
     ds->set_track_event_config_raw(te.SerializeAsString());
 
-    m_impl->session = perfetto::Tracing::NewTrace();
-    m_impl->session->Setup(cfg);
+    if (_sopen_s(
+        &m_impl->outputFile,
+        m_impl->outputPath.c_str(),
+        _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY,
+        _SH_DENYWR,
+        _S_IREAD | _S_IWRITE) != 0)
+    {
+        std::fprintf(stderr, "Failed to open %s for writing\n", m_impl->outputPath.c_str());
+        m_impl->outputFile = -1;
+    }
+
+    // Writing to a file descriptor asserts unless the backend is named here too;
+    // args.backends alone is not enough.
+    m_impl->session = perfetto::Tracing::NewTrace(perfetto::kInProcessBackend);
+    m_impl->session->Setup(cfg, m_impl->outputFile);
+    // Setup dups the descriptor, so ours is no longer needed.
+    if (m_impl->outputFile != -1)
+    {
+        _close(m_impl->outputFile);
+        m_impl->outputFile = -1;
+    }
     m_impl->session->StartBlocking();
 }
 
@@ -475,18 +503,12 @@ void PerfettoTraceWriter::Finish()
 
     perfetto::TrackEvent::Flush();
     m_impl->session->StopBlocking();
-    std::vector<char> data = m_impl->session->ReadTraceBlocking();
 
-    std::ofstream out(m_impl->outputPath, std::ios::out | std::ios::binary | std::ios::trunc);
-    if (!out)
-    {
-        std::fprintf(stderr, "Failed to open %s for writing\n", m_impl->outputPath.c_str());
-        return;
-    }
-    if (!data.empty())
-        out.write(data.data(), static_cast<std::streamsize>(data.size()));
-    out.close();
-    std::printf("Wrote %zu bytes to %s\n", data.size(), m_impl->outputPath.c_str());
-    if (m_impl->droppedSlices)
+    std::error_code sizeError;
+    const auto writtenBytes = std::filesystem::file_size(m_impl->outputPath, sizeError);
+
+    std::printf("Wrote %llu bytes to %s\n",
+        sizeError ? 0ull : static_cast<unsigned long long>(writtenBytes),
+        m_impl->outputPath.c_str());    if (m_impl->droppedSlices)
         std::printf("Dropped %zu slices that had nowhere non-overlapping to go\n", m_impl->droppedSlices);
 }

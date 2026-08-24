@@ -16,12 +16,26 @@ namespace DxEtwLibraryTest
         // administrator rights, so tests skip rather than fail in that case.
         bool SessionStarted = false;
         unsigned long ExitCode = 0;
+        unsigned long ProcessId = 0;
 
-        // The sample's stdout and stderr, worth attaching to any failure message.
+        // The sample's stdout and stderr, combined.
         std::string Output;
 
         ParsedTrace Trace;
     };
+
+    struct SampleInvocation
+    {
+        unsigned long ExitCode = 0;
+        std::string Output;
+        ParsedTrace Trace;
+    };
+
+    // Runs the sample to completion without waiting for a session or producing any
+    // work, for command lines that are not meant to capture anything.
+    SampleInvocation RunSampleToCompletion(const std::wstring& sampleArguments);
+
+    bool SampleSessionExists(unsigned long sampleProcessId);
 
     // Runs the perfetto sample executable against a real ETW session, calls
     // workDuringCapture once the session is up, and parses the trace it writes.
@@ -30,10 +44,9 @@ namespace DxEtwLibraryTest
         unsigned int captureSeconds,
         const std::function<void()>& workDuringCapture);
 
-    // Runs this executable again in its GPU work mode for the given number of
-    // seconds. Start it only once a trace is running - the child's contexts have to
-    // be created inside the trace - and keep it alive to the end of the capture, or
-    // the sample will be resolving the name of a process that has already exited.
+    // Runs this executable again in its GPU work mode. Start it only once a trace is
+    // running, since the child's contexts have to be created inside the trace, and
+    // keep it alive to the end of the capture so the sample can still name it.
     class GpuWorkChildProcess
     {
         void* m_process = nullptr;
