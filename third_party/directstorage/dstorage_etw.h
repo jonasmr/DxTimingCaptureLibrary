@@ -8,10 +8,10 @@
 #pragma once
 
 #include <evntprov.h>
-#include <evntrace.h>
 #include <stdint.h>
 
 #include <string_view>
+#include <tuple>
 
 namespace DirectStorage
 {
@@ -23,12 +23,10 @@ namespace DirectStorage
     using EndingWideString = std::wstring_view;
     using EndingString = std::string_view;
 
-    constexpr inline EVENT_DESCRIPTOR MakeDescriptor(uint16_t Id, uint8_t Level = TRACE_LEVEL_VERBOSE)
+    constexpr inline EVENT_DESCRIPTOR MakeDescriptor(uint16_t Id)
     {
         EVENT_DESCRIPTOR d{};
         d.Id = Id;
-        d.Version = 1;
-        d.Level = Level;
 
         return d;
     }
@@ -101,22 +99,9 @@ namespace DirectStorage
 
     struct EnqueueRequestEvent
     {
-        static inline constexpr EVENT_DESCRIPTOR Desc = MakeDescriptor(4, 2 /* Version 2 */);
+        static inline constexpr EVENT_DESCRIPTOR Desc = MakeDescriptor(4);
 
         std::tuple<EnqueueRequestEventData, EndingString, EnqueueRequestEventExtendedData> Data;
-    };
-
-    struct RequestStartedEventData
-    {
-        uint64_t Request;
-        uint64_t Queue;
-    };
-
-    struct RequestStartedEvent
-    {
-        static inline constexpr EVENT_DESCRIPTOR Desc = MakeDescriptor(5);
-
-        RequestStartedEventData Data;
     };
 
     struct RequestCompletedEventData
@@ -131,19 +116,6 @@ namespace DirectStorage
         static inline constexpr EVENT_DESCRIPTOR Desc = MakeDescriptor(6);
 
         RequestCompletedEventData Data;
-    };
-
-    struct CreateStatusArrayEventData
-    {
-        uint64_t StatusArray;
-        uint32_t Capacity;
-    };
-
-    struct CreateStatusArrayEvent
-    {
-        static inline constexpr EVENT_DESCRIPTOR Desc = MakeDescriptor(7);
-
-        std::tuple<CreateStatusArrayEventData, EndingString> Data;
     };
 
     struct EnqueueStatusEventData
@@ -207,107 +179,6 @@ namespace DirectStorage
         static inline constexpr EVENT_DESCRIPTOR Desc = MakeDescriptor(12);
 
         SubmitEventData Data;
-    };
-
-    struct FileReadEventData
-    {
-        uint64_t File;
-        uint64_t Offset;
-        uint64_t Request;
-        uint32_t SourceSize;
-        uint32_t UncompressedSize;
-        uint8_t CompressionFormat;
-    };
-
-    struct StartFileReadEvent
-    {
-        static inline constexpr EVENT_DESCRIPTOR Desc = MakeDescriptor(13);
-
-        FileReadEventData Data;
-    };
-
-    struct FileReadCompletedEvent
-    {
-        static inline constexpr EVENT_DESCRIPTOR Desc = MakeDescriptor(14);
-
-        FileReadEventData Data;
-    };
-
-    struct RequestEventData
-    {
-        uint64_t Request;
-        uint32_t SourceSize;
-        uint32_t UncompressedSize;
-        uint8_t CompressionFormat;
-        uint8_t DestinationType;
-    };
-
-    struct StartCpuProcessStageEvent
-    {
-        static inline constexpr EVENT_DESCRIPTOR Desc = MakeDescriptor(15);
-
-        RequestEventData Data;
-    };
-
-    struct CpuProcessStageCompletedEvent
-    {
-        static inline constexpr EVENT_DESCRIPTOR Desc = MakeDescriptor(16);
-
-        RequestEventData Data;
-    };
-
-    struct StartGpuProcessStageEvent
-    {
-        static inline constexpr EVENT_DESCRIPTOR Desc = MakeDescriptor(17);
-
-        RequestEventData Data;
-    };
-
-    struct GpuProcessStageCompletedEvent
-    {
-        static inline constexpr EVENT_DESCRIPTOR Desc = MakeDescriptor(18);
-
-        RequestEventData Data;
-    };
-
-    struct GpuCopyStageEventData
-    {
-        uint64_t Request;
-        uint32_t UncompressedSize;
-        uint8_t CompressionFormat;
-        uint8_t DestinationType;
-    };
-
-    struct StartGpuCopyStageEvent
-    {
-        static inline constexpr EVENT_DESCRIPTOR Desc = MakeDescriptor(19);
-
-        GpuCopyStageEventData Data;
-    };
-
-    struct GpuCopyStageCompletedEvent
-    {
-        static inline constexpr EVENT_DESCRIPTOR Desc = MakeDescriptor(20);
-
-        GpuCopyStageEventData Data;
-    };
-
-    struct ActivitySummaryEventData
-    {
-        bool CopyQueueEnabled;
-        bool ComputeQueueEnabled;
-        uint32_t NumSubmitThreads;
-        bool ForceMappingLayer;
-        bool DisableBypassIO;
-        bool DisableTelemetry;
-        uint64_t TotalBytesRead;
-    };
-
-    struct ActivitySummaryEvent
-    {
-        static inline constexpr EVENT_DESCRIPTOR Desc = MakeDescriptor(21, TRACE_LEVEL_INFORMATION);
-
-        ActivitySummaryEventData Data;
     };
 
     struct SetEventData

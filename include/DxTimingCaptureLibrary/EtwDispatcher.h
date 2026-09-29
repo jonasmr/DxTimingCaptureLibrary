@@ -1404,23 +1404,12 @@ namespace DirectX::Etw
                 DISPATCH_DIRECTSTORAGE(CloseFileEvent);
                 DISPATCH_DIRECTSTORAGE(CreateQueueEvent);
                 DISPATCH_DIRECTSTORAGE(CloseQueueEvent);
-                DISPATCH_DIRECTSTORAGE(RequestStartedEvent);
                 DISPATCH_DIRECTSTORAGE(RequestCompletedEvent);
-                DISPATCH_DIRECTSTORAGE(CreateStatusArrayEvent);
                 DISPATCH_DIRECTSTORAGE(EnqueueStatusEvent);
                 DISPATCH_DIRECTSTORAGE(StatusCompletedEvent);
                 DISPATCH_DIRECTSTORAGE(EnqueueSignalEvent);
                 DISPATCH_DIRECTSTORAGE(SignalCompletedEvent);
                 DISPATCH_DIRECTSTORAGE(SubmitEvent);
-                DISPATCH_DIRECTSTORAGE(StartFileReadEvent);
-                DISPATCH_DIRECTSTORAGE(FileReadCompletedEvent);
-                DISPATCH_DIRECTSTORAGE(StartCpuProcessStageEvent);
-                DISPATCH_DIRECTSTORAGE(CpuProcessStageCompletedEvent);
-                DISPATCH_DIRECTSTORAGE(StartGpuProcessStageEvent);
-                DISPATCH_DIRECTSTORAGE(GpuProcessStageCompletedEvent);
-                DISPATCH_DIRECTSTORAGE(StartGpuCopyStageEvent);
-                DISPATCH_DIRECTSTORAGE(GpuCopyStageCompletedEvent);
-                DISPATCH_DIRECTSTORAGE(ActivitySummaryEvent);
                 DISPATCH_DIRECTSTORAGE(EnqueueSetEvent);
                 DISPATCH_DIRECTSTORAGE(SetEventCompletedEvent);
             }

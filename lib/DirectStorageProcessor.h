@@ -198,12 +198,6 @@ public:
         TrackRequest(data.Request, request);
     }
 
-    void OnTraceRequestStartedEvent(EVENT_RECORD* record, DirectStorage::RequestStartedEventData data)
-    {
-        UNREFERENCED_PARAMETER(record);
-        UNREFERENCED_PARAMETER(data);
-    }
-
     void OnTraceRequestCompletedEvent(EVENT_RECORD* record, DirectStorage::RequestCompletedEventData data)
     {
         // Only report a read whose enqueue we actually saw. A completion whose enqueue
@@ -221,13 +215,6 @@ public:
         // A request completes exactly once and nothing else reads m_requests, so drop it
         // here to bound memory -- same as the status/fence/set-event handlers.
         m_requests.erase(entry);
-    }
-
-    void OnTraceCreateStatusArrayEvent(EVENT_RECORD* record, DirectStorage::CreateStatusArrayEventData data, std::string_view name)
-    {
-        UNREFERENCED_PARAMETER(record);
-        UNREFERENCED_PARAMETER(data);
-        UNREFERENCED_PARAMETER(name);
     }
 
     void TrackStatusArray(uint64_t statusArray, DirectStorageCallbacks::StatusNotification data)
@@ -332,60 +319,6 @@ public:
         submit.EnqueueThreadId = record->EventHeader.ThreadId;
 
         ThrowFailure(m_callbacks->OnDirectStorageSubmit(submit));
-    }
-
-    void OnTraceStartFileReadEvent(EVENT_RECORD* record, DirectStorage::FileReadEventData data)
-    {
-        UNREFERENCED_PARAMETER(record);
-        UNREFERENCED_PARAMETER(data);
-    }
-
-    void OnTraceFileReadCompletedEvent(EVENT_RECORD* record, DirectStorage::FileReadEventData data)
-    {
-        UNREFERENCED_PARAMETER(record);
-        UNREFERENCED_PARAMETER(data);
-    }
-
-    void OnTraceStartCpuProcessStageEvent(EVENT_RECORD* record, DirectStorage::RequestEventData data)
-    {
-        UNREFERENCED_PARAMETER(record);
-        UNREFERENCED_PARAMETER(data);
-    }
-
-    void OnTraceCpuProcessStageCompletedEvent(EVENT_RECORD* record, DirectStorage::RequestEventData data)
-    {
-        UNREFERENCED_PARAMETER(record);
-        UNREFERENCED_PARAMETER(data);
-    }
-
-    void OnTraceStartGpuProcessStageEvent(EVENT_RECORD* record, DirectStorage::RequestEventData data)
-    {
-        UNREFERENCED_PARAMETER(record);
-        UNREFERENCED_PARAMETER(data);
-    }
-
-    void OnTraceGpuProcessStageCompletedEvent(EVENT_RECORD* record, DirectStorage::RequestEventData data)
-    {
-        UNREFERENCED_PARAMETER(record);
-        UNREFERENCED_PARAMETER(data);
-    }
-
-    void OnTraceStartGpuCopyStageEvent(EVENT_RECORD* record, DirectStorage::GpuCopyStageEventData data)
-    {
-        UNREFERENCED_PARAMETER(record);
-        UNREFERENCED_PARAMETER(data);
-    }
-
-    void OnTraceGpuCopyStageCompletedEvent(EVENT_RECORD* record, DirectStorage::GpuCopyStageEventData data)
-    {
-        UNREFERENCED_PARAMETER(record);
-        UNREFERENCED_PARAMETER(data);
-    }
-
-    void OnTraceActivitySummaryEvent(EVENT_RECORD* record, DirectStorage::ActivitySummaryEventData const& data)
-    {
-        UNREFERENCED_PARAMETER(record);
-        UNREFERENCED_PARAMETER(data);
     }
 
     void OnTraceEnqueueSetEvent(EVENT_RECORD* record, DirectStorage::SetEventData data)
