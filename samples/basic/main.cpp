@@ -6,6 +6,7 @@
 #include <cstdlib> // strtoul
 
 #include <DxTimingCaptureLibrary/DxTimingCaptureLibrary.h>
+#include <DxTimingCaptureLibrary/EtwProviders.h>
 
 #include "EtwConfig.h"
 #include "PrintfCallbacks.h"

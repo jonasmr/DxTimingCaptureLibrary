@@ -5,7 +5,10 @@
 
 #include <memory>
 
-#include <DxTimingCaptureLibrary/EtwDispatcher.h>
+#include <windows.h>
+#include <evntrace.h>
+#include <evntcons.h>
+
 #include <DxTimingCaptureLibrary/EtwCallbacks.h>
 #include <DxTimingCaptureLibrary/EtwDiagnostics.h>
 
@@ -13,6 +16,7 @@ namespace DirectX::Etw
 {
 
 class DxTimingCaptureProcessor;
+template <typename T> class EtwDispatcher;
 
 // DxTimingCaptureEventCallbacks: callbacks you implement. The library will dispatch to your callbacks when relevant
 // events occur. Leaving a callback as nullptr is fine - the library will replace it with a barebones impl.
@@ -124,7 +128,10 @@ public:
         const PixEventConfig& pixEventConfig,
         const TimestampConverter* timestampConverter);
 
-    virtual ~DxTimingCaptureEventHandler() = default;
+    virtual ~DxTimingCaptureEventHandler();
+
+    DxTimingCaptureEventHandler(const DxTimingCaptureEventHandler&) = delete;
+    DxTimingCaptureEventHandler& operator=(const DxTimingCaptureEventHandler&) = delete;
 
     // Decodes and correlates one ETW event record, invoking the relevant
     // callbacks. Call it from your consumer's EventRecordCallback for every

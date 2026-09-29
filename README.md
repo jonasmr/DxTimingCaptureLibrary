@@ -4,7 +4,13 @@ DxTimingCaptureLibrary is a consumer of Windows ETW (Event Tracing for Windows) 
 
 The library decodes and correlates events from D3D12, the DirectX graphics kernel (DXGK), the PIX runtime, and DirectStorage, then delivers the results through straightforward callbacks. A game engine, profiler, or other D3D12 tool can use that data without parsing raw ETW payloads itself.
 
-We created DxEtwLibrary by extracting code from PIX Timing Captures and moving it into a standalone project. All DirectX data shown in the PIX Timing Capture UI is available through DxEtwLibrary.
+We created DxTimingCaptureLibrary by extracting code from PIX Timing Captures and moving it into a standalone project. All DirectX data shown in the PIX Timing Capture UI is available through DxTimingCaptureLibrary.
+
+> **Note:** Standalone builds currently use a stub PIX event decoder
+> (`lib/PixEventDecoderStub.cpp`, selected by `UseStubPixEventDecoder` in
+> `Directory.Build.props`). With the stub, PIX runtime events (CPU/GPU markers,
+> custom counters, and PIX memory events) are not decoded. All other providers
+> are fully supported.
 
 ## What does the library give you?
 
@@ -94,6 +100,22 @@ handler->OnDataComplete();
 
 Your ETW session must use raw QPC timestamps: set `PROCESS_TRACE_MODE_RAW_TIMESTAMP` on the trace and `Wnode.ClientContext = 1` on the session. Without this, the timing data returned by the library will be wrong. The [basic sample](samples/basic) shows the complete setup.
 
+Provider GUIDs and keyword flags for session setup (`EnableTraceEx2`) are in `<DxTimingCaptureLibrary/EtwProviders.h>`. Include it where you configure the session; the handler itself doesn't need it.
+
+Starting a real-time ETW session and enabling the DXGK provider requires administrator rights or membership in the Performance Log Users group.
+
+## Using the library
+
+The simplest option is to add `lib/DxTimingCaptureLibrary.lib.vcxproj` to your solution and reference it from your project. Otherwise, link `DxTimingCaptureLibrary.lib` (built to `x64\<Configuration>\lib\`) and add these include directories:
+
+- `include/`: the public headers (`DxTimingCaptureLibrary/DxTimingCaptureLibrary.h` is the entry point)
+- `third_party/PixEventDecoder/include/`: decoded PIX event types used in the public callbacks
+- The D3D12 Agility SDK headers (`Microsoft.Direct3D.D3D12` NuGet package, `build/native/include`), for `d3d12.h` and `D3D12Events.h`
+
+If you include `EtwProviders.h`, also add `third_party/dxgk/` and `third_party/directstorage/`.
+
+To process a recorded `.etl` file instead of a live session, see the [ETL processor sample](samples/etlprocessor).
+
 ## Samples
 
 ### [Basic event logging](samples/basic)
@@ -120,9 +142,20 @@ This sample listens for resource creation and residency events and uses them to 
 
 ## Building
 
-Open [`DxTimingCaptureLibrary.sln`](DxTimingCaptureLibrary.sln) in Visual Studio and build the x64 Debug or Release configuration. The solution includes the `DxTimingCaptureLibrary` static library, samples, and tests.
+### Prerequisites
 
-The main test projects live under [`test.unit/`](test.unit) and [`test.functional/`](test.functional). Samples with their own behavior keep their tests nearby; for example, see [`samples/perfetto/test.unit`](samples/perfetto/test.unit) and [`samples/perfetto/test.functional`](samples/perfetto/test.functional). The functional tests run against a live ETW session.
+- Windows 10 or 11, x64
+- Visual Studio 2022 with the **Desktop development with C++** workload (v143 toolset)
+- Windows SDK 10.0.26100.0
+- NuGet access to nuget.org. The build restores `Microsoft.Direct3D.D3D12` 1.619.5 and `Microsoft.Direct3D.DirectStorage` 1.3.0.
+
+Open [`DxTimingCaptureLibrary.sln`](DxTimingCaptureLibrary.sln) in Visual Studio and build the x64 Debug or Release configuration. The solution includes the `DxTimingCaptureLibrary` static library, samples, and tests. You can also build from a Developer Command Prompt:
+
+```text
+msbuild DxTimingCaptureLibrary.sln /restore /p:Configuration=Debug /p:Platform=x64
+```
+
+The main test projects live under [`test.unit/`](test.unit) and [`test.functional/`](test.functional). Samples with their own behavior keep their tests nearby; for example, see [`samples/perfetto/test.unit`](samples/perfetto/test.unit) and [`samples/perfetto/test.functional`](samples/perfetto/test.functional). Unit tests are deterministic and need no special hardware. Functional tests run against a live ETW session, so they need a D3D12-capable GPU and administrator rights, and the DirectStorage tests also need DirectStorage support.
 
 ## License
 

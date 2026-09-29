@@ -31,15 +31,15 @@ License: MIT. The applicable license text is reproduced in the repository root
 
 ## DirectStorage ETW definitions
 
-`third_party/directstorage/dstorage_etw.h` is a Microsoft-owned copy of
-DirectStorage ETW definitions that are not included in the public
-`Microsoft.Direct3D.DirectStorage` NuGet package.
+`third_party/directstorage/dstorage_etw.h` contains the subset of
+DirectStorage ETW provider definitions used by the library. These definitions
+are not included in the public `Microsoft.Direct3D.DirectStorage` NuGet
+package.
 
-Copyright (c) Microsoft Corporation. All rights reserved.
+Copyright (c) Microsoft Corporation.
 
-The file does not currently state a public redistribution license. Its inclusion
-in a public distribution requires confirmation from the copyright owner; this
-notice does not grant additional rights.
+License: MIT. The applicable license text is reproduced in the repository root
+`LICENSE` file.
 
 ## GoogleTest
 
@@ -59,6 +59,8 @@ under `third_party/perfetto/sdk/`.
 
 - Project: https://github.com/google/perfetto
 - Commit: `c794fceabe584dc9172e5512aaaeecc21019a635`
+- Source artifact:
+  https://github.com/google/perfetto/releases/download/v56.1/perfetto-cpp-sdk-src.zip
 - License: Apache License 2.0
 - License text: `third_party/perfetto/LICENSE`
 
@@ -105,6 +107,13 @@ The bundled `imstb_rectpack.h`, `imstb_textedit.h`, and `imstb_truetype.h`
 include software by Sean Barrett, copyright (c) 2017, offered under either the
 MIT License or the public-domain dedication reproduced at the end of each
 header. This distribution uses the MIT option.
+
+`imgui_draw.cpp` embeds Japanese glyph range data derived from the Joyo and
+Jinmeiyo kanji lists published by Japan's Agency for Cultural Affairs and
+Ministry of Justice. That data is licensed under the Creative Commons
+Attribution 4.0 International License
+(https://creativecommons.org/licenses/by/4.0/legalcode). The data was generated
+with https://github.com/vaiorabbit/everyday_use_kanji.
 
 ## Restored Microsoft packages and Windows SDK
 

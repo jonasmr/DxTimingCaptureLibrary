@@ -9,6 +9,7 @@
 #include <d3dcompiler.h>
 
 #include <DxTimingCaptureLibrary/DxTimingCaptureEventHandler.h>
+#include <DxTimingCaptureLibrary/TicksToNanoseconds.h>
 
 using namespace DirectX::Etw;
 

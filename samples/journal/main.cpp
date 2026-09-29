@@ -12,6 +12,7 @@
 #include "pch.h"
 
 #include <DxTimingCaptureLibrary/DxTimingCaptureLibrary.h>
+#include <DxTimingCaptureLibrary/EtwException.h>
 
 #include "EtwConfig.h"
 

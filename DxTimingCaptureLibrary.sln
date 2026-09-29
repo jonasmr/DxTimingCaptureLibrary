@@ -26,6 +26,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "imgui", "third_party\imgui\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxTimingCaptureLibrary.sample.memorymap", "samples\memorymap\DxTimingCaptureLibrary.sample.memorymap.vcxproj", "{D519BA6D-0853-4333-9A41-B126FAE0AB93}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DxTimingCaptureLibrary.EtlProcessor", "samples\etlprocessor\DxTimingCaptureLibrary.EtlProcessor.vcxproj", "{B5C0E40C-A234-4F32-B7CE-57B5F20D8CF4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -80,6 +82,10 @@ Global
 		{D519BA6D-0853-4333-9A41-B126FAE0AB93}.Debug|x64.Build.0 = Debug|x64
 		{D519BA6D-0853-4333-9A41-B126FAE0AB93}.Release|x64.ActiveCfg = Release|x64
 		{D519BA6D-0853-4333-9A41-B126FAE0AB93}.Release|x64.Build.0 = Release|x64
+		{B5C0E40C-A234-4F32-B7CE-57B5F20D8CF4}.Debug|x64.ActiveCfg = Debug|x64
+		{B5C0E40C-A234-4F32-B7CE-57B5F20D8CF4}.Debug|x64.Build.0 = Debug|x64
+		{B5C0E40C-A234-4F32-B7CE-57B5F20D8CF4}.Release|x64.ActiveCfg = Release|x64
+		{B5C0E40C-A234-4F32-B7CE-57B5F20D8CF4}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

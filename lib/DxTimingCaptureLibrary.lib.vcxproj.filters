@@ -5,9 +5,11 @@
     <ClCompile Include="AllocationTracker.cpp" />
     <ClCompile Include="D3D12ObjectProcessor.cpp" />
     <ClCompile Include="DxTimingCaptureEventHandler.cpp" />
+    <ClCompile Include="PixEventDecoderStub.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AdapterTracker.h" />
+    <ClInclude Include="DirectStorageProcessor.h" />
     <ClInclude Include="DxTimingCaptureProcessor.h" />
     <ClInclude Include="Identifiers.h" />
     <ClInclude Include="MemoryCounterWriter.h" />
@@ -16,6 +18,5 @@
     <ClInclude Include="PerProcessData.h" />
     <ClInclude Include="AllocationTracker.h" />
     <ClInclude Include="D3D12ObjectProcessor.h" />
-    <ClInclude Include="DxTimingCaptureEventHandler.h" />
   </ItemGroup>
 </Project>

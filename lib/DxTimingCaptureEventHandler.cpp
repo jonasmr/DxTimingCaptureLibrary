@@ -86,6 +86,8 @@ DxTimingCaptureEventHandler::DxTimingCaptureEventHandler(
 {
 }
 
+DxTimingCaptureEventHandler::~DxTimingCaptureEventHandler() = default;
+
 void DxTimingCaptureEventHandler::HandleEventRecord(PEVENT_RECORD record)
 {
     if (record->EventHeader.ProviderId == PixEtw::PIX_ETW_PROVIDER_WINDOWS ||

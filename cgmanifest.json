@@ -31,6 +31,16 @@
     },
     {
       "component": {
+        "type": "other",
+        "other": {
+          "name": "perfetto-cpp-sdk-src",
+          "version": "56.1",
+          "downloadUrl": "https://github.com/google/perfetto/releases/download/v56.1/perfetto-cpp-sdk-src.zip"
+        }
+      }
+    },
+    {
+      "component": {
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/ocornut/imgui",

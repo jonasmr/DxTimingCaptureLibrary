@@ -5,13 +5,17 @@
     <RootNamespace>DxTimingCaptureLibrary</RootNamespace>
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <TargetName>DxTimingCaptureLibrary</TargetName>
-    <OutDir>$(OutDir)lib\</OutDir>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(IsLinux)' == 'true'">
     <ConfigurationType>StaticLibrary</ConfigurationType>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <!-- After Microsoft.Cpp.props so the default per-configuration OutDir is set;
+       otherwise this resolves to a relative lib\ shared by every configuration. -->
+  <PropertyGroup>
+    <OutDir>$(OutDir)lib\</OutDir>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <PrecompiledHeader>Use</PrecompiledHeader>

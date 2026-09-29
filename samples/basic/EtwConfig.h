@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <DxTimingCaptureLibrary/EtwProviders.h>
+
 struct EventTraceProperties
 {
     static constexpr size_t MAX_SESSION_NAME_LENGTH = 1024;
