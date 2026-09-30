@@ -1,16 +1,10 @@
 # DxTimingCaptureLibrary
 
-DxTimingCaptureLibrary is a consumer of Windows ETW (Event Tracing for Windows) events that's designed to make it easy for you to interpret DirectX ETW data in your applications.
+DxTimingCaptureLibrary is a Windows ETW (Event Tracing for Windows) consumer that makes it easy to use DirectX ETW data in your own apps.
 
-The library decodes and correlates events from D3D12, the DirectX graphics kernel (DXGK), the PIX runtime, and DirectStorage, then delivers the results through straightforward callbacks. A game engine, profiler, or other D3D12 tool can use that data without parsing raw ETW payloads itself.
+The library decodes and correlates events from D3D12, the DirectX graphics kernel (DXGK), the PIX runtime, and DirectStorage, then hands you the results through callbacks. A game engine, profiler, or other D3D12 tool can use that data without parsing raw ETW payloads itself.
 
-We created DxTimingCaptureLibrary by extracting code from PIX Timing Captures and moving it into a standalone project. All DirectX data shown in the PIX Timing Capture UI is available through DxTimingCaptureLibrary.
-
-> **Note:** Standalone builds currently use a stub PIX event decoder
-> (`lib/PixEventDecoderStub.cpp`, selected by `UseStubPixEventDecoder` in
-> `Directory.Build.props`). With the stub, PIX runtime events (CPU/GPU markers,
-> custom counters, and PIX memory events) are not decoded. All other providers
-> are fully supported.
+We pulled this out of the PIX Timing Capture code, so you can get the same DirectX data PIX uses in your own tools.
 
 ## What does the library give you?
 
@@ -69,31 +63,35 @@ class MyGpuTimings : public NoOpGpuTimingsCallbacks
 };
 
 MyGpuTimings gpuTimings;
+std::unique_ptr<DxTimingCaptureEventHandler> handler;
 
-DxTimingCaptureLibraryOptions options{};
-options.TrackGpuTiming = true;
-
-DxTimingCaptureEventCallbacks callbacks{};
-callbacks.GpuTimingsCallbacks = &gpuTimings;
-
-auto handler = DxTimingCaptureEventHandler::Create(
-    targetProcessId,
-    options,
-    callbacks);
-
-// From your ETW EventRecordCallback:
-try
+// Set this as EVENT_TRACE_LOGFILE::EventRecordCallback before calling ProcessTrace.
+void WINAPI OnEvent(EVENT_RECORD* record)
 {
-    handler->HandleEventRecord(record);
-}
-catch (...)
-{
-    // Do not let a C++ exception unwind through ProcessTrace's C frames.
-    std::fputs("Dropped an event: HandleEventRecord threw.\n", stderr);
+    try
+    {
+        handler->HandleEventRecord(record);
+    }
+    catch (...)
+    {
+        // Don't let a C++ exception unwind through ProcessTrace's C frames.
+        std::fputs("Dropped an event: HandleEventRecord threw.\n", stderr);
+    }
 }
 
-// After ProcessTrace returns:
-handler->OnDataComplete();
+void CreateHandler(DWORD targetProcessId) // pid of the app you want to look at
+{
+    DxTimingCaptureLibraryOptions options{};
+    options.TrackGpuTiming = true;
+
+    DxTimingCaptureEventCallbacks callbacks{};
+    callbacks.GpuTimingsCallbacks = &gpuTimings;
+
+    handler = DxTimingCaptureEventHandler::Create(targetProcessId, options, callbacks);
+}
+
+// After ProcessTrace returns, flush anything still pending:
+//     handler->OnDataComplete();
 ```
 
 ### ETW settings
@@ -114,13 +112,15 @@ The simplest option is to add `lib/DxTimingCaptureLibrary.lib.vcxproj` to your s
 
 If you include `EtwProviders.h`, also add `third_party/dxgk/` and `third_party/directstorage/`.
 
-To process a recorded `.etl` file instead of a live session, see the [ETL processor sample](samples/etlprocessor).
+To process a recorded `.etl` file instead of a live session, see the `--etl` option in the [Perfetto sample](samples/perfetto).
+
+The repo ships with a stub PIX event decoder, so PIX markers aren't decoded out of the box. To get them, swap `lib/PixEventDecoderStub.cpp` for the real decoder from [microsoft/pixevents](https://github.com/microsoft/pixevents).
 
 ## Samples
 
 ### [Basic event logging](samples/basic)
 
-This is the best place to start. It provides straightforward, `printf`-based implementations of the callback interfaces and shows the complete setup: creating a real-time ETW session, enabling the DirectX providers, feeding events to the library, handling errors, and reporting data loss.
+Start here. It `printf`s from every callback interface and shows the full setup: creating a real-time ETW session, enabling the DirectX providers, feeding events to the library, handling errors, and reporting data loss.
 
 Run it with an optional target process ID:
 
@@ -130,7 +130,7 @@ DxTimingCaptureLibrary.sample.exe [processId]
 
 ### [D3D12 journal entries](samples/journal)
 
-This sample implements the runtime-failure callback and deliberately records an invalid `CopyBufferRegion` call. The D3D12 runtime rejects the call and writes a journal entry, which the library decodes and prints. Journal entries provide more detail than the normal D3D12 API error alone, work in retail D3D12 environments, and do not require the D3D12 debug layer.
+This sample implements the runtime-failure callback and deliberately records an invalid `CopyBufferRegion` call. The D3D12 runtime rejects the call and writes a journal entry, which the library decodes and prints. You get more detail than the usual D3D12 error, and it works on retail runtimes without the debug layer.
 
 ### [Perfetto](samples/perfetto)
 
@@ -140,6 +140,13 @@ This sample turns the library's GPU timing callbacks into a [Perfetto](https://p
 
 This sample listens for resource creation and residency events and uses them to build a live memory visualization. It shows resource and heap usage in system and video memory while accounting for paging, eviction, migration, placed resources, and aliasing.
 
+### [ETL processor](samples/etlprocessor)
+
+This sample reads a saved `.etl` and dumps lower-level data, like D3D12 device PIDs, raw history-buffer (GPU timing) submissions as CSV, and outstanding dxgkrnl allocations. It's more useful for driver developers debugging GPU timing issues than for game developers.
+
+```text
+DxTimingCaptureLibrary.EtlProcessor --etl <path> --action <dumppids|dumphistorybuffers|dumpallocations>
+```
 ## Building
 
 ### Prerequisites
@@ -159,4 +166,4 @@ The main test projects live under [`test.unit/`](test.unit) and [`test.functiona
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE). Third-party components are listed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+MIT, see [`LICENSE`](LICENSE). Third-party components are listed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
