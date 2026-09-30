@@ -164,6 +164,14 @@ msbuild DxTimingCaptureLibrary.sln /restore /p:Configuration=Debug /p:Platform=x
 
 The main test projects live under [`test.unit/`](test.unit) and [`test.functional/`](test.functional). Samples with their own behavior keep their tests nearby; for example, see [`samples/perfetto/test.unit`](samples/perfetto/test.unit) and [`samples/perfetto/test.functional`](samples/perfetto/test.functional). Unit tests are deterministic and need no special hardware. Functional tests run against a live ETW session, so they need a D3D12-capable GPU and administrator rights, and the DirectStorage tests also need DirectStorage support.
 
+## Contributing
+
+Contributions are very welcome! Bug fixes, new samples, support for more ETW events or providers, docs fixes, whatever you've got. For bigger changes, please open an issue first so we can talk it through.
+
+You can also find us in the #pix channel on the [DirectX Discord](https://discord.gg/directx).
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the details.
+
 ## License
 
 MIT, see [`LICENSE`](LICENSE). Third-party components are listed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
