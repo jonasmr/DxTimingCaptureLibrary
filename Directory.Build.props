@@ -43,6 +43,12 @@
     <DxTimingCaptureStandaloneBuild Condition="'$(DxTimingCaptureStandaloneBuild)' == ''">true</DxTimingCaptureStandaloneBuild>
   </PropertyGroup>
 
+  <!-- Debug builds use the debug CRT (/MDd) and no optimization, so Debug
+       consumers can link x64\Debug\lib\DxTimingCaptureLibrary.lib. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <UseDebugLibraries Condition="'$(UseDebugLibraries)' == ''">true</UseDebugLibraries>
+  </PropertyGroup>
+
   <PropertyGroup>
     <DxTimingCaptureLibraryRoot>$(MSBuildThisFileDirectory.TrimEnd('\'))</DxTimingCaptureLibraryRoot>
     <GoogleTestPath>$(DxTimingCaptureLibraryRoot)\third_party\googletest</GoogleTestPath>

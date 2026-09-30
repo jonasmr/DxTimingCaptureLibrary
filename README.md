@@ -106,7 +106,7 @@ Starting a real-time ETW session and enabling the DXGK provider requires adminis
 
 ## Using the library
 
-The simplest option is to add `lib/DxTimingCaptureLibrary.lib.vcxproj` to your solution and reference it from your project. Otherwise, link `DxTimingCaptureLibrary.lib` (built to `x64\<Configuration>\lib\`) and add these include directories:
+The simplest option is to add `lib/DxTimingCaptureLibrary.lib.vcxproj` to your solution and reference it from your project. Otherwise, link `DxTimingCaptureLibrary.lib` (built to `x64\<Configuration>\lib\`; Debug uses the debug DLL CRT `/MDd`, Release uses `/MD`, so match your configuration) and add these include directories:
 
 - `include/`: the public headers (`DxTimingCaptureLibrary/DxTimingCaptureLibrary.h` is the entry point)
 - `third_party/PixEventDecoder/include/`: decoded PIX event types used in the public callbacks
