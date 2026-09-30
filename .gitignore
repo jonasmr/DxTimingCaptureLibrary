@@ -29,3 +29,16 @@ x86/
 # Perfetto capture output
 *.perfetto-trace
 *.pftrace
+
+# More Visual Studio / tooling artifacts
+*.rsuser
+*.aps
+*.binlog
+*.VC.db
+*.VC.opendb
+ipch/
+.vscode/
+*.nupkg
+
+# ETW traces
+*.etl
