@@ -138,7 +138,7 @@ This sample turns the library's GPU timing callbacks into a [Perfetto](https://p
 
 ### [Memory map](samples/memorymap)
 
-This sample listens for resource creation and residency events and uses them to build a live memory visualization. It shows resource and heap usage in system and video memory while accounting for paging, eviction, migration, placed resources, and aliasing.
+This sample listens for resource creation and residency events and uses them to draw treemaps of resource and heap usage in system and video memory. It's still a work in progress: it misses some resources and doesn't handle resources moving between system and video memory yet.
 
 ### [ETL processor](samples/etlprocessor)
 

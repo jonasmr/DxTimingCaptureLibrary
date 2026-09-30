@@ -4,21 +4,31 @@ Draws two [WinDirStat](https://windirstat.net/)-style treemaps of a process's
 live D3D12 memory: **system memory (host RAM) on the left, video memory (VRAM)
 on the right**. Each rectangle is a heap or resource, sized in proportion to its
 allocation and labelled with its name. It's a quick way to see *where* an app's
-resources actually live and watch them move as the app runs.
+resources actually live.
+
+![The memory map sample showing system and video memory treemaps](screenshot.png)
 
 It consumes the memory-location data DxTimingCaptureLibrary reports per object
 (`ObjectPlacementInfo::ResidentSegmentGroup` and the
-`ResidencyEventCallbacks::OnAllocationSegmentGroupChanges` migration signal), so
-the two panels stay accurate even as allocations page between pools.
+`ResidencyEventCallbacks::OnAllocationSegmentGroupChanges` migration signal).
+
+## Work in progress
+
+This sample isn't finished yet. Known issues:
+
+- It doesn't pick up every resource, so the totals can be lower than the app's
+  real usage.
+- It doesn't handle resources changing location. If something moves between
+  system and video memory after it's first placed, the map can show it on the
+  wrong side.
 
 ## How it draws things
 
 - **Committed resources** and **explicit heaps** are top-level rectangles on the
   side (system or video) matching their current segment group.
 - **Placed resources** nest *inside* their heap's rectangle - the heap is found
-  by GPU-virtual-address containment. Because a placed resource follows its
-  heap, migrating a heap between pools carries all of its placed resources with
-  it, and nothing gets double-counted.
+  by GPU-virtual-address containment, so placed resources are drawn on the
+  same side as their heap and nothing gets double-counted.
 - **Unknown** (segment group not resolved yet) objects aren't drawn on either
   side; their count shows in the status bar. This is normal for a moment right
   after creation, until the DXGK paging events that pin down the pool arrive.
@@ -46,7 +56,6 @@ or a member of **Performance Log Users**.
 
 ## Rendering
 
-Dear ImGui (vendored under `imgui/`) on a Win32 + Direct3D 11 host. The
+Dear ImGui (vendored under [`third_party/imgui`](../../third_party/imgui)) on a Win32 + Direct3D 11 host. The
 treemaps are painted straight into ImGui's draw list, and the window redraws
-every frame so they update live as the target app allocates, frees, and
-migrates memory.
+every frame so it updates live as the target app allocates and frees memory.
