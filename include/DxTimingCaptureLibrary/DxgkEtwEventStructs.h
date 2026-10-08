@@ -321,6 +321,24 @@ namespace DirectX::Etw
         uint32_t segmentId;
     };
 
+    struct DxgkPagingOpDiscardArgs
+    {
+        //<data name = "pDxgAdapter" inType = "win:Pointer" / >
+        uint64_t dxgAdapter;
+        //<data name = "hDmaBuffer" inType = "win:Pointer" / >
+        uint64_t dmaBuffer;
+        //<data name = "ContinueNextBuffer" inType = "win:Boolean" / >
+        bool continueNextBuffer;
+        //<data name = "hAllocationGlobalHandle" inType = "win:Pointer" / >
+        uint64_t allocationGlobalHandle;
+        //<data name = "Flags" inType = "win:UInt32" / >
+        uint32_t flags;
+        //<data name = "SegmentId" inType = "win:UInt32" / >  The segment being discarded from.
+        uint32_t segmentId;
+        //<data name = "SegmentOffset" inType = "win:UInt64" / >
+        uint64_t segmentOffset;
+    };
+
     struct DxgkPagingOpMapApertureSegmentArgs
     {
         //<data name = "pDxgAdapter" inType = "win:Pointer" / >

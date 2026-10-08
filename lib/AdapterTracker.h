@@ -24,11 +24,12 @@ class AdapterTracker
         std::wstring Description;
         std::vector<HardwareCommandQueueId> EngineNodeOrdinalToHardwareQueueDatabaseId;
         uint64_t MemoryCounterWriterIndex = 0;
-
-        std::unordered_map<AdapterSegmentId, AdapterSegmentInfo> SegmentInfo;
     };
 
     std::map<uint64_t, PerAdapterInfo> m_adapterLuidToAdapterInfo;
+    // Keyed by dxgkAdapter (what the segment and paging events carry) rather than via PerAdapterInfo,
+    // so ReportSegment is not lost when it arrives before DpiReportAdapter.
+    std::map<uint64_t, std::unordered_map<AdapterSegmentId, AdapterSegmentInfo>> m_dxgkAdapterToSegmentInfo;
     std::map<uint64_t, uint64_t> m_dxgkAdapterToAdapterLuid;
     std::map<uint64_t, std::set<MonitorIdentifier>> m_dxgkAdapterToMonitorIds;
     std::vector<std::shared_ptr<MemoryCounterWriter>> m_memoryCounterWriters;
@@ -209,24 +210,43 @@ public:
 
     void UpdateSegment(uint64_t dxgAdapter, AdapterSegmentId segmentId, D3DKMT_MEMORY_SEGMENT_GROUP memorySegmentGroup)
     {
-        auto adapterInfo = TryGetPerAdapterInfo(dxgAdapter);
-        if (adapterInfo)
-        {
-            adapterInfo->SegmentInfo[segmentId].MemorySegmentGroup = memorySegmentGroup;
-        }
+        m_dxgkAdapterToSegmentInfo[dxgAdapter][segmentId].MemorySegmentGroup = memorySegmentGroup;
     }
 
-    std::optional<AdapterSegmentInfo> TryGetSegmentInfo(uint64_t dxgAdapter, AdapterSegmentId segmentId)
+    std::optional<AdapterSegmentInfo> TryGetSegmentInfo(uint64_t dxgAdapter, AdapterSegmentId segmentId) const
     {
-        const auto adapterInfo = TryGetPerAdapterInfo(dxgAdapter);
-        if (adapterInfo == nullptr || adapterInfo->SegmentInfo.count(segmentId) == 0)
+        const auto adapterIt = m_dxgkAdapterToSegmentInfo.find(dxgAdapter);
+        if (adapterIt == m_dxgkAdapterToSegmentInfo.end())
         {
             return std::nullopt;
         }
-        else
+
+        const auto segmentIt = adapterIt->second.find(segmentId);
+        if (segmentIt == adapterIt->second.end())
         {
-            return adapterInfo->SegmentInfo.at(segmentId);
+            return std::nullopt;
         }
+
+        return segmentIt->second;
+    }
+
+    // The budget group that evicted allocations count against once they're back in their system memory backing
+    // store. VidMm puts the adapter's implicit system memory segment in the NonLocal group unless no segment needs
+    // NonLocal memory, in which case it goes in Local (VIDMM_PHYSICAL_ADAPTER_LEGACY segment setup).
+    std::optional<D3DKMT_MEMORY_SEGMENT_GROUP> TryGetSystemMemorySegmentGroup(uint64_t dxgAdapter) const
+    {
+        const auto adapterIt = m_dxgkAdapterToSegmentInfo.find(dxgAdapter);
+        if (adapterIt == m_dxgkAdapterToSegmentInfo.end() || adapterIt->second.empty())
+        {
+            return std::nullopt;
+        }
+
+        const bool hasNonLocalSegment = std::ranges::any_of(adapterIt->second, [](const auto& segment)
+        {
+            return segment.second.MemorySegmentGroup == D3DKMT_MEMORY_SEGMENT_GROUP_NON_LOCAL;
+        });
+
+        return hasNonLocalSegment ? D3DKMT_MEMORY_SEGMENT_GROUP_NON_LOCAL : D3DKMT_MEMORY_SEGMENT_GROUP_LOCAL;
     }
 
 private:
@@ -290,21 +310,6 @@ private:
         // L"DISPLAY\\DEL4084\\8&1171F0ED&0&UID256"
 
         // TODO: figure out how to match this up to lanes we logged for the vsyncs
-    }
-
-    PerAdapterInfo* TryGetPerAdapterInfo(uint64_t dxgAdapter)
-    {
-        const auto luidIt = m_dxgkAdapterToAdapterLuid.find(dxgAdapter);
-        if (luidIt != m_dxgkAdapterToAdapterLuid.end())
-        {
-            const auto adapterInfoIt = m_adapterLuidToAdapterInfo.find(luidIt->second);
-            if (adapterInfoIt != m_adapterLuidToAdapterInfo.end())
-            {
-                return &adapterInfoIt->second;
-            }
-        }
-
-        return nullptr;
     }
 };
 

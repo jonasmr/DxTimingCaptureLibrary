@@ -2579,8 +2579,59 @@ public:
         }
 
         // D3DKMT_MEMORY_SEGMENT_GROUP values line up with MemorySegmentGroup.
-        const auto group = static_cast<MemorySegmentGroup>(segmentInfo->MemorySegmentGroup);
+        SetResidentSegmentGroup(allocationGlobalHandle, static_cast<MemorySegmentGroup>(segmentInfo->MemorySegmentGroup), timestamp, residencyCallbacks);
+    }
 
+    // A PagingOpVirtualTransfer moved (part of) an allocation. This is how VidMm reports promotions to and
+    // demotions/evictions from video memory, so it drives the resident segment group just like the fill/commit events.
+    void HandleAllocationTransfer(
+        AdapterTracker& adapters,
+        uint64_t dxgAdapter,
+        uint64_t allocationGlobalHandle,
+        uint32_t destinationSegmentId,
+        DXGK_MEMORY_TRANSFER_DIRECTION transferDirection,
+        uint64_t timestamp,
+        ResidencyEventCallbacks* residencyCallbacks)
+    {
+        if (destinationSegmentId != 0)
+        {
+            HandleAllocationSegmentInfo(adapters, dxgAdapter, allocationGlobalHandle, destinationSegmentId, timestamp, residencyCallbacks);
+            return;
+        }
+
+        // Segment id 0 is the allocation's system memory backing store (it was evicted rather than moved into a
+        // segment).
+        if (transferDirection == DXGK_MEMORY_TRANSFER_DIRECTION::DXGK_MEMORY_TRANSFER_LOCAL_TO_SYSTEM)
+        {
+            HandleAllocationEvictedToBackingStore(adapters, dxgAdapter, allocationGlobalHandle, timestamp, residencyCallbacks);
+        }
+    }
+
+    // The allocation left its segment for its system memory backing store. VidMm reports this either as a
+    // PagingOpVirtualTransfer to segment 0 or, when the contents don't need copying, as a PagingOpDiscard.
+    void HandleAllocationEvictedToBackingStore(
+        AdapterTracker& adapters,
+        uint64_t dxgAdapter,
+        uint64_t allocationGlobalHandle,
+        uint64_t timestamp,
+        ResidencyEventCallbacks* residencyCallbacks)
+    {
+        const auto group = adapters.TryGetSystemMemorySegmentGroup(dxgAdapter);
+        if (!group)
+        {
+            // Adapter's segments aren't known yet; a later paging event will re-evaluate.
+            return;
+        }
+
+        SetResidentSegmentGroup(allocationGlobalHandle, static_cast<MemorySegmentGroup>(*group), timestamp, residencyCallbacks);
+    }
+
+    void SetResidentSegmentGroup(
+        uint64_t allocationGlobalHandle,
+        MemorySegmentGroup group,
+        uint64_t timestamp,
+        ResidencyEventCallbacks* residencyCallbacks)
+    {
         const auto previousGroup = m_allocationTracker.TryGetResidentGroup(allocationGlobalHandle);
         if (previousGroup == group)
         {

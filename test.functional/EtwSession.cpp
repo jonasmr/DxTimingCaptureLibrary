@@ -254,6 +254,7 @@ void SimpleEtwSession::Begin()
     callbacks.GpuTimingsCallbacks = m_gpuTimingsCallbacks.get();
     callbacks.GpuEngineActivityCallbacks = m_gpuEngineActivityCallbacks.get();
     callbacks.DirectStorageCallbacks = m_directStorageCallbacks.get();
+    callbacks.ResidencyEventCallbacks = m_residencyEventCallbacks.get();
     callbacks.RuntimeFailureCallbacks = m_runtimeFailureCallbacks.get();
     callbacks.DiagnosticsSink = this;
 
