@@ -1311,6 +1311,19 @@ private:
             args.transferDirection,
             args.allocationOffset,
             timestamp);
+
+        // Large allocations are transferred in several chunks; the first one is enough to know where it went.
+        if (args.allocationOffset > 0)
+            return;
+
+        GetPerProcessData(m_filterToProcessId).HandleAllocationTransfer(
+            m_adapters,
+            args.dxgAdapter,
+            args.hAllocationGlobalHandle,
+            args.destinationSegmentId,
+            args.transferDirection,
+            timestamp,
+            m_residencyEventCallbacks);
     }
 
     template <>
@@ -1380,10 +1393,28 @@ private:
     }
 
     template <>
+    void OnDxgkEvent_Info(EVENT_RECORD* record, DxgkPagingOpDiscardArgs args)
+    {
+        // Note: we don't filter by m_filterToProcessId here since these events always come from the system process
+        if (!m_options.TrackApiObjects)
+            return;
+
+        // VidMm evicts allocations whose contents don't need preserving (e.g. read-only or unmodified) by discarding
+        // them from their segment instead of transferring them, leaving them in their system memory backing store.
+        GetPerProcessData(m_filterToProcessId).HandleAllocationEvictedToBackingStore(
+            m_adapters,
+            args.dxgAdapter,
+            args.allocationGlobalHandle,
+            GetTimestamp(record),
+            m_residencyEventCallbacks);
+    }
+
+    template <>
     void OnDxgkEvent_Info(EVENT_RECORD* record, DxgkMigrateAllocationArgs args)
     {
         // Note: we don't filter by m_filterToProcessId here since these events always come from the system process
-        if (!m_options.TrackGpuTiming)
+        // Migrations are reported against API objects, which are only tracked with TrackApiObjects.
+        if (!m_options.TrackApiObjects)
             return;
 
         auto& targetProcessData = GetPerProcessData(m_filterToProcessId);
@@ -1396,7 +1427,7 @@ private:
     void OnDxgkEvent_Stop(EVENT_RECORD* record, DxgkCompleteAllocationMigrationArgs args)
     {
         // Note: we don't filter by m_filterToProcessId here since these events always come from the system process
-        if (!m_options.TrackGpuTiming)
+        if (!m_options.TrackApiObjects)
             return;
 
         auto& targetProcessData = GetPerProcessData(m_filterToProcessId);

@@ -46,6 +46,7 @@ class SimpleEtwSession : public DiagnosticsSink
     std::unique_ptr<GpuTimingsCallbacks> m_gpuTimingsCallbacks;
     std::unique_ptr<GpuEngineActivityCallbacks> m_gpuEngineActivityCallbacks;
     std::unique_ptr<DirectStorageCallbacks> m_directStorageCallbacks;
+    std::unique_ptr<ResidencyEventCallbacks> m_residencyEventCallbacks;
 
     std::unique_ptr<DxTimingCaptureEventHandler> m_handler;
 
@@ -95,6 +96,13 @@ public:
     void SetDirectStorageCallbacks(std::unique_ptr<DirectStorageCallbacks> callbacks)
     {
         m_directStorageCallbacks = std::move(callbacks);
+    }
+
+    // Supplies the ResidencyEventCallbacks the handler will drive. Optional: if not set, the
+    // session installs a no-op implementation.
+    void SetResidencyEventCallbacks(std::unique_ptr<ResidencyEventCallbacks> callbacks)
+    {
+        m_residencyEventCallbacks = std::move(callbacks);
     }
 
     // Supplies the GpuEngineActivityCallbacks the handler will drive. Optional: if not

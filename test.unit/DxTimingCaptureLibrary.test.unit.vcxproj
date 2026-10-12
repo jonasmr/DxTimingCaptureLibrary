@@ -43,6 +43,7 @@
     <ClCompile Include="GpuPacketTrackerTests.cpp" />
     <ClCompile Include="NullContractTests.cpp" />
     <ClCompile Include="EventDataTests.cpp" />
+    <ClCompile Include="ResidencySegmentGroupTests.cpp" />
     <ClCompile Include="RuntimeFailureTests.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="pch.cpp">

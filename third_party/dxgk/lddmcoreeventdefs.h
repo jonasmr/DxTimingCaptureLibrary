@@ -44,6 +44,7 @@ EXTERN_C __declspec(selectany) const GUID DxgkControlGuid =
 #define EventMigrateAllocation_value                   0x30
 #define EventCompleteAllocationMigration_value         0x31
 // Paging / segments
+#define EventPagingOpDiscard_value                     0x37
 #define EventPagingOpMapApertureSegment_value          0x3a
 #define EventReportSegment_value                       0x4e
 #define EventPagingOpVirtualTransfer_value             0x132

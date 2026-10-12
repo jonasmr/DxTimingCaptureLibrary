@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <ProjectGuid>{4cc2e643-97df-4f7d-9740-93fccf974c7f}</ProjectGuid>
@@ -51,12 +51,14 @@
     <ClCompile Include="CommandListNameTests.cpp" />
     <ClCompile Include="GpuEngineActivityTests.cpp" />
     <ClCompile Include="GpuWorkload.cpp" />
+    <ClCompile Include="ResidencyTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EtwSession.h" />
     <ClInclude Include="GpuWorkload.h" />
     <ClInclude Include="RecordingApiObjectCallbacks.h" />
     <ClInclude Include="RecordingDirectStorageCallbacks.h" />
+    <ClInclude Include="RecordingResidencyEventCallbacks.h" />
     <ClInclude Include="pch.h" />
   </ItemGroup>
   <ItemGroup>

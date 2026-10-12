@@ -241,6 +241,7 @@ namespace DirectX::Etw
                 DISPATCH_DXGK(EventReportSegment, ReportSegment, Info);
                 DISPATCH_DXGK(EventPagingOpVirtualFill, PagingOpVirtualFill, Info);
                 DISPATCH_DXGK(EventPagingOpSysmemCommit, PagingOpSysmemCommit, Info);
+                DISPATCH_DXGK(EventPagingOpDiscard, PagingOpDiscard, Info);
                 DISPATCH_DXGK(EventPagingOpMapApertureSegment, PagingOpMapApertureSegment, Info);
                 // MigrateAllocation and CompleteAllocationMigration don't follow the typical Start/Stop ETW convention or naming scheme.
                 // The manifest names also don't appear to match the header (depending on where you get the manifest apparently),
@@ -1248,6 +1249,25 @@ namespace DirectX::Etw
             args.dxgAdapter = d.ReadPointer();
             args.allocationGlobalHandle = d.ReadPointer();
             args.segmentId = d.ReadUint32();
+
+            (m_obj->*target)(
+                record,
+                args);
+        }
+
+        template<typename TEventArgs>
+        void Template_DxgkPagingOpDiscard(EVENT_RECORD* record, void (T::* target)(EVENT_RECORD*, TEventArgs))
+        {
+            EventData d(record);
+
+            DxgkPagingOpDiscardArgs args;
+            args.dxgAdapter = d.ReadPointer();
+            args.dmaBuffer = d.ReadPointer();
+            args.continueNextBuffer = (bool)d.ReadUint32();
+            args.allocationGlobalHandle = d.ReadPointer();
+            args.flags = d.ReadUint32();
+            args.segmentId = d.ReadUint32();
+            args.segmentOffset = d.ReadUint64();
 
             (m_obj->*target)(
                 record,
